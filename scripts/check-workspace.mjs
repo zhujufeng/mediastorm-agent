@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, rmSync, existsSync, renameSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { projectChanges } from '../.pi/extensions/project-changes.mjs';
+import { displayMessage, messageProjection, toolSummary } from '../desktop/messages.mjs';
+import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { workflowSnapshot } from '../.pi/extensions/mediastorm/presentation.mjs';
+
+assert.equal(displayMessage({ role: 'custom', content: 'INTERNAL', display: false }, 'id'), null);
+const projected = displayMessage({ role: 'assistant', content: [{ type: 'thinking', thinking: 'HIDDEN' }, { type: 'text', text: '<img src=x>' }, { type: 'toolCall', id: 'call', name: 'bash', arguments: { command: 'curl -H Authorization:secret', key: 'secret' } }] }, 'id');
+assert.equal(projected.text, '<img src=x>'); assert.equal(projected.calls[0].summary, 'curl');
+assert.doesNotMatch(JSON.stringify(projected), /HIDDEN|secret|arguments/);
+assert.equal(toolSummary('custom', { key: 'secret', path: '/private' }), '');
+assert.equal(displayMessage({ role: 'toolResult', toolCallId: 'call', isError: true, content: [{ type: 'text', text: 'x'.repeat(61000) }] }, 'id').truncated, true);
+const manager = SessionManager.inMemory(), projection = messageProjection(manager);
+for (const text of ['same', 'same']) {
+  const message = { role: 'user', content: text, timestamp: 1 };
+  const live = projection.start(message); assert.equal(projection.update(message).id, live.id);
+  let finalized; projection.end(message, value => { finalized = value; }); manager.appendMessage(message);
+  await Promise.resolve(); assert.equal(finalized.previousId, live.id); assert.equal(finalized.id, projection.history().at(-1).id);
+}
+assert.notEqual(projection.history()[0].id, projection.history()[1].id);
+assert.deepEqual(messageProjection(manager).history(), projection.history());
+
+const root = realpathSync(mkdtempSync(join(tmpdir(), 'storm-git-presentation-')));
+const git = (...args) => execFileSync('git', ['-c', 'core.fsmonitor=false', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@localhost', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@localhost' } });
+try {
+  git('init', '-q');
+  const task = join(root, '.trellis', 'tasks', 'fixture'); mkdirSync(task, { recursive: true });
+  writeFileSync(join(task, 'task.json'), JSON.stringify({ title: 'Snapshot fixture' }));
+  writeFileSync(join(task, 'progress.json'), JSON.stringify({ version: 1, phase: 'clarify', summary: 'Real summary', next: 'Confirm', checkCommand: 'node check.cjs', check: { exitCode: 1, killed: false, stdout: 'x'.repeat(61000), stderr: 'failed', command: 'node check.cjs', at: 'fixture-time', privateField: 'DO_NOT_PROJECT' } }));
+  writeFileSync(join(task, 'prd.md'), 'x'.repeat(61000));
+  const snapshot = workflowSnapshot(root, task);
+  assert.equal(snapshot.task, '.trellis/tasks/fixture'); assert.equal(snapshot.phase, 'clarify');
+  assert.match(snapshot.documents['prd.md'], /截断/); assert.match(snapshot.check.stdout, /截断/);
+  assert.doesNotMatch(JSON.stringify(snapshot), /DO_NOT_PROJECT/); assert.equal(workflowSnapshot(root).task, null);
+  writeFileSync(join(task, 'progress.json'), 'invalid json'); assert.throws(() => workflowSnapshot(root, task));
+  rmSync(join(root, '.trellis'), { recursive: true });
+  const special = 'quote" tab\tline\n中文.txt';
+  for (const name of ['both.txt', 'delete.txt', 'old.txt', special, ':(glob)*', 'big.txt']) writeFileSync(join(root, name), `original ${name}\n`);
+  writeFileSync(join(root, 'binary.dat'), Buffer.from([0, 1, 2]));
+  git('add', '--all');
+  const tree = git('write-tree').trim(), commit = git('commit-tree', tree, '-m', 'Isolated fixture baseline').trim(); git('update-ref', 'HEAD', commit);
+  writeFileSync(join(root, 'both.txt'), 'staged\n'); git('add', 'both.txt'); writeFileSync(join(root, 'both.txt'), 'unstaged\n');
+  renameSync(join(root, 'old.txt'), join(root, 'renamed.txt')); git('add', '--all', '--', 'old.txt', 'renamed.txt');
+  rmSync(join(root, 'delete.txt')); writeFileSync(join(root, special), 'special updated\n'); writeFileSync(join(root, ':(glob)*'), 'literal pathspec\n');
+  writeFileSync(join(root, 'binary.dat'), Buffer.from([0, 3, 4])); writeFileSync(join(root, 'untracked.txt'), 'UNTRACKED_SECRET');
+  const hook = join(root, 'bad-hook'); writeFileSync(hook, '#!/bin/sh\necho unsafe > "$PWD/hook-fired"\n', { mode: 0o755 });
+  git('config', 'core.fsmonitor', hook); git('config', 'diff.external', hook); git('config', 'diff.fixture.textconv', hook);
+  writeFileSync(join(root, '.gitattributes'), '*.txt diff=fixture\n');
+  const result = await projectChanges(root);
+  assert.equal(existsSync(join(root, 'hook-fired')), false);
+  assert.equal(result.files.filter(f => f.path === 'both.txt').length, 2);
+  assert.match(result.files.find(f => f.path === 'both.txt' && f.group === 'staged').patch, /\+staged/);
+  assert.match(result.files.find(f => f.path === 'both.txt' && f.group === 'unstaged').patch, /\+unstaged/);
+  assert.equal(result.files.find(f => f.path === 'renamed.txt').oldPath, 'old.txt');
+  assert.equal(result.files.find(f => f.path === 'delete.txt').status, 'D');
+  assert.equal(result.files.find(f => f.path === 'binary.dat').binary, true);
+  assert.match(result.files.find(f => f.path === special).patch, /special updated/);
+  assert.doesNotMatch(result.files.find(f => f.path === ':(glob)*').patch, /special updated|unstaged/);
+  assert.equal(result.files.find(f => f.path === 'untracked.txt').patch, '');
+  assert.doesNotMatch(JSON.stringify(result), /UNTRACKED_SECRET/);
+  writeFileSync(join(root, 'big.txt'), 'huge line\n'.repeat(50000));
+  const bounded = await projectChanges(root); assert.equal(bounded.truncated, true); assert.equal(bounded.files.find(f => f.path === 'big.txt').truncated, true);
+  assert.match(bounded.text, /截断/);
+  for (let i = 0; i < 110; i++) writeFileSync(join(root, `untracked-${i}`), 'private');
+  const limited = await projectChanges(root); assert.equal(limited.files.length, 100); assert.ok(limited.omitted > 0);
+  await assert.rejects(projectChanges(root, AbortSignal.abort()));
+  assert.equal(existsSync(join(root, 'hook-fired')), false);
+  console.log('PASS: stable live/persisted message IDs, duplicate timestamps, hidden thinking/context and argument filtering; real Git staging, rename/delete/binary, NUL special paths, literal pathspecs, untracked privacy, hooks, output/file limits and abort.');
+} finally { rmSync(root, { recursive: true, force: true }); }

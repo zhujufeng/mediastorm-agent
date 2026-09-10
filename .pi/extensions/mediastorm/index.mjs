@@ -8,6 +8,7 @@ import {
   readDocument, relativeTask, requireApproval, saveProgress, taskList, taskPath,
 } from "./state.mjs";
 import { agentProfile, agentInstructions, agents } from "./agents.mjs";
+import { workflowSnapshot } from "./presentation.mjs";
 import {
   assessmentReport, assessmentSchema, deliveryDigest, handoffReport, handoffSchema,
   projectMemory, renderAssessment, renderHandoff,
@@ -53,6 +54,7 @@ export default function mediaStorm(pi) {
     try {
       const root = projectRoot(ctx.cwd);
       const state = task && current();
+      pi.events.emit("mediastorm:workflow", { ...workflowSnapshot(root, task), checkRunning: Boolean(pendingCheck) });
       ctx.ui.setStatus("mediastorm", `${basename(root)} · ${state ? phases[state.phase] : "直接描述需求即可"}`);
       ctx.ui.setWidget("mediastorm", [`项目：${basename(root)}`, `目录：${root}`, ...(state ? [
         `助手：${agentProfile(state.agent).name}`,
@@ -62,9 +64,15 @@ export default function mediaStorm(pi) {
         `下一步：${state.next}`,
       ] : ["项目接手与优化助手 · 直接说：帮我优化当前项目。", "也可以描述明确的开发需求，或说：查看项目经验。"])]);
     } catch (error) {
+      pi.events.emit("mediastorm:workflow", { project: ctx.cwd, task: null, error: error.message });
       ctx.ui.setWidget("mediastorm", [`无法读取项目进度：${error.message}`]);
       ctx.ui.setStatus("mediastorm", "进度读取失败");
     }
+  };
+  const confirmWorkflow = async (ctx, root, kind, digest, title, message, signal) => {
+    pi.events.emit("mediastorm:confirmation", { kind, digest, title, snapshot: workflowSnapshot(root, task) });
+    try { return await ctx.ui.confirm(title, message, { signal }); }
+    finally { pi.events.emit("mediastorm:confirmation", null); }
   };
   const kickoff = () => pi.sendUserMessage(
     `按 MediaStorm 工作流继续当前任务。先读取 ${workflowSkill}，` +
@@ -139,7 +147,7 @@ export default function mediaStorm(pi) {
         if (!prd || !state.checkCommand.trim()) throw new Error("需要先写好需求和实际检查命令。");
         const digest = planDigest(task, state.checkCommand);
         const plan = [renderAssessment(state.assessment), ...documentNames.map(name => `## ${name}\n${readDocument(task, name) || "无需单独文档"}`)].join("\n\n");
-        if (!await ctx.ui.confirm("确认需求、方案与验收方式后开始？", `${plan}\n\n检查命令：${state.checkCommand}`, { signal })) return false;
+        if (!await confirmWorkflow(ctx, root, "approve", digest, "确认需求、方案与验收方式后开始？", `${plan}\n\n检查命令：${state.checkCommand}`, signal)) return false;
         signal?.throwIfAborted();
         if (digest !== planDigest(task, current().checkCommand)) throw new Error("方案在确认期间发生变化，请重新查看。");
         await python(ctx, [".trellis/scripts/task.py", "start", relativeTask(root, task)]);
@@ -155,7 +163,7 @@ export default function mediaStorm(pi) {
         if (state.agent === "project-takeover" && !state.handoff) throw new Error("请先用 storm_handoff 整理交付和拟保留的项目经验。");
         if (state.handoff) handoffReport(root, state.handoff);
         const digest = deliveryDigest(state);
-        if (!await ctx.ui.confirm("确认验收当前交付和项目经验？", `${state.summary}\n${renderHandoff(state.handoff, state.check)}\n检查：${state.checkCommand}\n请结合代码差异、产物与检查输出判断。`, { signal })) return false;
+        if (!await confirmWorkflow(ctx, root, "accept", digest, "确认验收当前交付和项目经验？", `${state.summary}\n${renderHandoff(state.handoff, state.check)}\n检查：${state.checkCommand}\n请结合代码差异、产物与检查输出判断。`, signal)) return false;
         signal?.throwIfAborted();
         const latest = current();
         requireApproval(task, latest);
@@ -309,6 +317,7 @@ export default function mediaStorm(pi) {
   pi.on("session_start", restore);
   pi.on("session_tree", restore);
   pi.on("before_agent_start", (event, ctx) => {
+    refresh(ctx);
     const state = task ? current() : null;
     const preferredRole = process.env.STORM_AGENT_PROFILE || "project-takeover";
     const role = state && state.phase !== "completed" ? state.agent : preferredRole;
@@ -319,7 +328,6 @@ export default function mediaStorm(pi) {
       runInstructions: excerpt(item.runInstructions), remainingCount: item.remaining.length,
       remaining: item.remaining.slice(0, 3).map(note => excerpt(note, 250)), memoriesCount: item.memories.length,
       memories: item.memories.slice(0, 2).map(note => ({ ...note, fact: excerpt(note.fact, 250) })) }));
-    refresh(ctx);
     return { systemPrompt: `${event.systemPrompt}\n\nMediaStorm 工作流已启用。使用中文，一次问一个需要用户判断的问题。` +
       "用户直接描述需求即可，不要求记忆工作流命令。普通咨询直接回答，不创建开发任务。" +
       `工作请求先读取 ${workflowSkill}；没有任务时用 storm_task new 记录目标，继续旧任务用 resume。` +

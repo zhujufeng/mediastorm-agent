@@ -3,16 +3,19 @@
 Electron 44.3.0、原生 HTML/CSS/JavaScript，无 React 和 UI 框架。入口 desktop/index.html、app.js、app.css；Markdown 在 markdown.mjs，主进程与 Pi worker 不进入 renderer。开发前阅读任务 PRD、docs/desktop-pilot.md 和 backend/desktop-runtime.md。
 
 - 中文、原生表单与 dialog、可访问标签、可见焦点；Enter 发送，Shift+Enter 换行，中文组合输入期间不触发发送。
-- 主体是项目侧栏和对话；历史按项目展示，任务细节可收起，当前阶段仍在顶部可见。颜色使用 CSS tokens，系统深浅色同步。
+- 主体为项目/会话侧栏、回合级对话和可收起的方案/改动/检查栏；搜索仅过滤当前项目最近会话，阶段仍在顶部可见。颜色使用 CSS tokens，系统深浅色同步。
 - 首次使用明确连接模型、打开项目两步。已有凭据不等于模型权限已通过测试；实际成功测试才提示连接可用。
 - OAuth prompt 保留来源和类型，使用设置里的 auth-progress，禁止加入普通 question 模态队列。manual_code 是与自动回调竞速的备用输入，默认折叠，不抢焦点，不遮住授权链接。取消/超时/回调后清空输入和过期请求。
 - 成功反馈与错误区分颜色和文案；登录成功自动保存所选模型。中转站“保存并测试”先保存当前表单，不能测试旧设置后误报当前输入可用。
 - Model、工具结果、错误和 Git diff 通过 textContent 呈现。Markdown 只复用随 Pi 固定的 marked lexer，按 DOM 类型白名单创建节点；原始 HTML、图片和链接不执行、不联网，不使用 innerHTML。
-- 历史与实时消息共用 worker 的可见角色过滤，禁止短暂显示 display:false 的内部扩展上下文。
-- 工作流确认默认聚焦取消；Esc、停止、切换项目不能隐式批准。OAuth 不需要普通工作流确认。
+- 历史与实时消息共用 messages.mjs 的公开角色投影，禁止显示 custom/thinking。thread.mjs 按用户回合聚合过程，通过 message.id/previousId 和 toolCallId 更新，不猜最后一个 DOM；恢复历史保留过程展开和阅读位置，省略前文时不把孤立工具结果挂到新回合。
+- 工作流展示使用第一方结构化 workflow 快照，不解析中文 widget。inspector.mjs 仅在当前 question 含单次 workflow 元数据时显示确认；原文可展开，默认聚焦取消。Esc、停止、切换项目不能隐式批准，调整意见先取消再进入输入框。无有效成功检查不能验收；失败重试只是正常对话意图，不增加执行命令 IPC。OAuth 不需要普通工作流确认。任务文档以中文用途命名、文件名次级显示；新方案请求默认展开真实需求/方案，新验收请求默认展开真实交付，之后尊重手动折叠。决策按钮旁显示本请求快照中的检查命令，不另造摘要字段。插件已加载数量使用中性次级样式。
+- 会话搜索只重绘列表，不重新应用 catalog。workflow/busy/catalog 共用 epoch+revision 拒绝旧投影；fatal 清除缓存成功状态并保持不可用，迟到响应和搜索都不能恢复成功或确认按钮。
 - 读历史时不强制滚到底部；消息发送失败保留输入，密钥保存后清空。代码复制仅请求剪贴板写权限，不读取剪贴板。
 
 ## 验证
+
+`npm run check:desktop-ui` 加载真实 main/preload/renderer/worker/SDK，用临时 Git 与回环模型替身验证完整确认→失败→修复→检查→差异→验收，以及历史、停止、输入恢复、键盘和系统深浅色。输出默认 `.local/desktop-ui-evidence`；截图必须实际查看，不能由 DOM 断言推定视觉正确。Mac 窗口真实焦点影响键盘与剪贴板权限，检查应先断言焦点，不能放宽权限掩盖失焦。无独立 lint/typecheck；既有 OAuth 与 Markdown 检查继续保留。乱序回归使用检查脚本中的 Promise 屏障暂停真实 SDK 会话查询、catalog IPC 返回及本地模型续步，主动释放旧 workflow/busy/catalog 并杀掉临时 worker；必须断言实际检查失效/断线后不会恢复成功，不能只靠固定睡眠碰时序。调度辅助仅在测试进程，不新增生产测试 IPC。
 
 npm run check:desktop 包含 Markdown 安全输出、真实 SDK OAuth 本机回调（模拟令牌端点）和桌面工作流/会话隔离回归。实际桌面还要验证登录自动开浏览器与返回、设置、流式、确认/取消、代码复制、历史和差异预览。模拟测试不代替真实账户；记录真实账号是否完成授权和实际请求，不能由 UI“已登录”推断业务质量。
 

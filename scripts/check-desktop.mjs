@@ -124,6 +124,10 @@ try {
   assert.ok(JSON.stringify(bodies.at(-1).messages).includes('角色：故障定位与修复助手'));
   assert.ok(events.filter(e => ['message','stream','message-end'].includes(e.type)).every(e => ['user','assistant','toolResult'].includes(e.message.role)), 'Hidden extension context must not enter the visible stream');
   assert.ok(events.some(e=>e.type==='stream' && e.message.text.includes('LOCAL_OK')));
+  const finalMessage = events.findLast(e => e.type === 'message-end' && e.message.role === 'assistant').message;
+  assert.ok(finalMessage.id && finalMessage.previousId);
+  assert.ok(events.some(e => e.type === 'stream' && e.message.id === finalMessage.previousId));
+  assert.equal(events.findLast(e => e.type === 'history').messages.at(-1).id, finalMessage.id);
   const persisted = (await request('diagnostics')).sessionFile;
   assert.ok(readFileSync(persisted,'utf8').includes('LOCAL_OK'));
   const savedConversation = (await request('catalog')).sessions.find(s => s.active);
@@ -139,15 +143,22 @@ try {
   await request('open',{path:project});
   assert.ok(events.some(e=>e.type==='history' && e.messages.some(m=>m.text.includes('LOCAL_OK'))));
   assert.equal((await request('diagnostics')).sessionFile,persisted);
+  assert.equal(events.findLast(e => e.type === 'history').messages.at(-1).id, finalMessage.id, 'Persisted message IDs survive reopening');
+  assert.equal((await request('catalog')).workflow.task, null);
   for (const consent of [false, true]) {
     const questionReady = new Promise(resolve => { nextQuestion=resolve; });
     const turn = request('prompt',{text:'desktop confirmation '+String(consent)});
     const q = await Promise.race([questionReady,turn.then(()=>{throw new Error('Confirmation was not requested');})]);
     assert.equal(q.kind,'confirm'); assert.match(q.message,/Check|true/);
+    assert.equal(q.workflow.kind, 'approve'); assert.match(q.workflow.digest, /^[a-f0-9]{64}$/);
+    assert.equal(q.workflow.snapshot.phase, 'awaiting_approval');
+    assert.match(q.workflow.snapshot.documents['prd.md'], /Desktop confirmation/);
     child.send({reply:q.id,value:consent}); await turn;
     const task = readdirSync(join(project,'.trellis/tasks')).find(x=>x.includes('storm-'));
     const progress = JSON.parse(readFileSync(join(project,'.trellis/tasks',task,'progress.json'),'utf8'));
     assert.equal(progress.phase,consent?'implementing':'awaiting_approval');
+    assert.equal((await request('catalog')).workflow.phase, progress.phase);
+    assert.ok(events.filter(e => e.type === 'tool').every(e => e.toolCallId && !('args' in e)), 'Tool events expose IDs, not arbitrary arguments');
   }
   await request('profile',{id:'code-review'});
   await request('prompt',{text:'Check the existing task role'});

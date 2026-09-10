@@ -156,7 +156,11 @@ else {
       if (!authLinks.has(data.url)) throw new Error('只允许打开当前登录步骤提供的链接。');
       await shell.openExternal(data.url); return true;
     }
-    if (action === 'stop') return request('stop');
+    if (action === 'stop') {
+      for (const id of questions.keys()) send({ type: 'dismiss', id });
+      questions.clear();
+      return request('stop');
+    }
     if (action === 'catalog' || action === 'diagnostics' || action === 'changes') return request(action);
     if (operation || running) throw new Error('当前操作仍在进行，请先停止。');
     operation = true;

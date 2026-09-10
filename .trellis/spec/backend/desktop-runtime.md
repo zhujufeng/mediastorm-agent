@@ -45,7 +45,7 @@ worker 设置 PYTHONDONTWRITEBYTECODE=1，避免 Trellis 调用随包 Python 时
 
 OAuth 的 source=auth / promptType 原样传给 renderer，manual_code 与本机回调并行；合并局部 signal、主动取消与 15 分钟超时。OpenAI 的 browser/device_code 选择来自设置，默认 browser。连接测试最多等待 45 秒。
 
-SessionManager.list/open 管理当前项目历史，只暴露 id/标题/时间/是否当前；resume 在 worker 校验 id 所属 cwd 和真实路径，不接受任意文件路径。实时与历史消息只发 user/assistant/toolResult 三类，内部 custom 上下文不可展示。
+SessionManager.list/open 管理当前项目历史，只暴露 id/标题/时间/是否当前；resume 在 worker 校验 id 所属 cwd 和真实路径，不接受任意文件路径。实时与历史消息只发 user/assistant/toolResult 三类，内部 custom/thinking 不可展示。messages.mjs 投影公开文本（最多 60,000 字符并标记截断）、toolCallId、调用名称及有限摘要；只允许已知文件工具路径，Bash 只显示首个可执行词，不传任意参数对象。Pi 0.85.1 在 message_end 订阅通知之后同步保存同一个消息对象：实时用临时 ID，微任务按对象引用找到原生 entry ID，发 previousId 显式重绑定；历史用 sessionId:entryId，不能用时间戳或文本猜关联。最近 200 条来自当前 branch 的公开消息，保留省略数量。
 
 check:mac-package 同时从独立应用副本加载 Markdown 与真实 OAuth 回归，确保 marked 等传递依赖实际随包、回调桥接仍可用。
 
@@ -63,6 +63,51 @@ package.json 为唯一应用版本来源，锁文件根版本同步；HTML、pac
 
 锁定的 @electron/osx-sign 2.7.0 导出 `sign`（返回 Promise），不是旧版 `signAsync`；check:updates 在源码模式验证实际导出。
 
+
+## 工作台展示通道
+
+### 1. 范围与触发
+
+修改消息/工具投影、任务/检查侧栏、确认展示、Git 差异或异步 catalog 时遵循此契约。仅覆盖本地展示，不授予执行或批准权限。
+
+### 2. 接口
+
+- `workspaceState()` → `{ epoch, revision, workflow, busy }`；`workflow`/`busy` 事件和 `catalog()` 共用这些字段。
+- 扩展事件：`mediastorm:workflow(snapshot)`、`mediastorm:confirmation({ kind, digest, title, snapshot } | null)`。
+- `messageProjection(manager)` 提供 `start/update/end/history`；结束投影含 `id/previousId`，工具关联用 `toolCallId`。
+- `projectChanges(project, signal?)` → `{ text, files, omitted, truncated }`；`files[]` 包含 `group/status/path/oldPath?/patch/binary/truncated`。
+- Renderer 的 `answer({ id, value })` 保持既有 IPC；无直接写 phase/approval/check 的接口。
+
+### 3. 数据与生命周期
+
+每次打开项目/会话创建独立公开 createEventBus 并交给 DefaultResourceLoader；订阅 mediastorm:workflow 与 mediastorm:confirmation。旧 bus 清空，项目 epoch 随 project/history/message/tool/workflow/changes/catalog 返回，renderer 丢弃旧异步响应。workflow 在 catalog 中保留最新快照以覆盖首屏订阅时序；空任务和读取失败显式返回，不猜 widget 或其他会话的状态。workflow/busy 事件和 catalog 共享进程内递增 revision，并同时携带 workflow、busy、epoch；任何一种投影都能补齐另一字段，避免只因丢弃旧事件而漏掉状态。catalog 先完成所有异步查询，最后同步采集这些字段；会话列表查询跨越 epoch 时重新采集。renderer 统一拒绝旧 epoch/同 epoch 旧 revision，fatal 清除成功缓存并锁定断线态，后续 catalog/事件不能恢复成功；只有重开应用重建运行时才能解除。序号不写入账户或会话存储，不参与批准摘要。
+
+确认元数据只消费到紧随其后、标题匹配的非 OAuth confirm question，保留原问题 ID、正文、signal/timeout。元数据不是批准凭证；main 仍校验 questions Map 中有效 ID 与值，扩展仍复核计划/交付摘要。stop 在主进程同步撤销问题 ID，再请求 worker 中止，避免 dismiss 往返期间旧确认复活。不新增任务写入、任意路径或 shell IPC。
+
+结构化 Git 查询复用 projectChanges，保留 CLI text，并返回 files（group/status/path/oldPath/patch/binary/truncated）、omitted/truncated。固定 NUL name-status 与 ls-files 查询，不从可读 diff 标题猜路径；--literal-pathspecs 防止特殊文件名成为 Git 通配表达式，路径仅来自本次 Git 查询。未跟踪文件不读内容；至多 100 项，单 patch 128 KiB、总 patch 1 MiB，元数据单查询 2 MiB，10 秒总期限。缓冲截断时不使用不完整 NUL 记录，取消和其他错误不能伪装为干净工作区。原 fsmonitor/ext-diff/textconv 保护保留；这仍不是仓库执行沙箱。
+
+### 4. 验证与错误矩阵
+
+| 输入/状态 | 必须行为 |
+| --- | --- |
+| 旧 epoch 或同 epoch 较低 revision | 不应用该投影，不回退工作流或 busy |
+| catalog 查询期间 epoch 变化 | 重新采集；不得把旧会话列表配上新项目 |
+| fatal 后迟到 catalog、事件或搜索 | 保持断线，不恢复旧成功检查/确认 |
+| 空任务或快照读取失败 | 显示空/失败状态，不借用旧任务 |
+| 过期问题 ID、错误确认值、取消/停止 | 主进程拒绝或取消，不写批准状态 |
+| Git 超限、不完整 NUL 记录、取消/命令错误 | 明示截断或失败，不拼错路径、不伪装无改动 |
+
+### 5. 正常、基本和错误场景
+
+正常：真实消息→工具→实际检查记录→当前有效确认→原摘要二次校验。基本：未绑定任务仍可普通对话，未跟踪文件只显示名称。错误：成功快照被失效后，又因一次搜索或迟到目录查询恢复「检查通过」。
+
+### 6. 必须验证
+
+`check-workspace.mjs` 覆盖消息/快照投影、过滤、Git 路径和限制；`check-desktop.mjs` 覆盖 worker 与原协议。`check-desktop-ui.cjs` 用真实主进程/SDK和 Promise 屏障暂停会话列表、catalog 返回及模型续步，断言逆序返回不能恢复成功或解除 busy；实际终止临时 worker 后重复搜索/释放旧响应，断言断线持续。确认摘要、默认取消和原 OAuth 回归仍须通过。
+
+### 7. 错误与正确
+
+错误：`return { workflow, busy, sessions: await projectSessions() }` 在 await 前冻结部分状态；搜索调用完整 `updateCatalog(catalog)` 重放缓存。正确：先完成列表查询并核对 epoch，再同步采样 `workspaceState()`；接收方检查 revision，搜索只 `renderSessions()`。DOM 状态正确不代表截图已刷新，图像仍须等绘制并实际读取。
 
 ## 模型选择与能力库（0.4.0）
 

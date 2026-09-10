@@ -13,6 +13,8 @@
 - `storm_progress({phase, summary, next, checkCommand?})`：Agent 写进度，不能写 completed。
 - `storm_check({})`：执行已确认的检查命令，成功返回实际输出，失败抛错。
 - `loadProgress(task)`：唯一进度读取入口，校验版本、字段和确认指纹。
+- `presentation.mjs` 从该入口生成只读任务展示快照；refresh 通过公开 `pi.events` 发布 `mediastorm:workflow`，同时保留原 CLI status/widget。快照含真实 task、phase、调查/交付、文档与检查；检查运行标记来自 pendingCheck，不从阶段文案猜测。读取失败发布 error，不能保留旧成功状态。文档与 stdout/stderr 单段最多 60,000 字符并标记截断，不改原文件/hash。
+- approve/accept 在原 ctx.ui.confirm 前发布 `mediastorm:confirmation`（kind、digest、title、同一次展示 snapshot），finally 清空；桌面仅用于绑定当前 question，不能凭元数据直接写进度。原 planDigest/deliveryDigest 二次校验、signal 和取消行为保持。
 
 ## 3. 数据与环境
 
@@ -76,6 +78,8 @@ before_agent_start 为这五条记录提供交付摘要、运行/检查说明（
 必须保留 Agent 选择及旧任务指纹、调查/交付门槛、报告引用、确认竞争、检查与交付失效、跨 Agent 读取项目经验、恢复助手、归档检索和验收指纹变更回归。报告工具与任务切换/确认共用 pendingControl，和修改/检查互斥。
 
 历史回顾回归须验证新会话收到交付/检查/遗留及原记录路径，文本和列表受限且有标识，完整内容仍能检索；纯读取不创建/恢复任务、不改变验收文件。离线测试不保证模型完成证据核对或正确区分设计决定与遗留问题。
+
+`scripts/check-workspace.mjs` 验证公开消息/快照的截断与过滤、原生 ID 重绑定，以及真实 Git 的暂存/未暂存/未跟踪、删除/重命名/二进制、NUL 特殊路径、literal pathspec、钩子、输出/文件上限和取消；由 check:desktop 调用。真实 worker 回归还核对 workflow 快照、单次确认元数据及历史 ID。
 
 改动 `.mjs` 后执行对应 `node --check`。没有独立 lint/type-check 配置，不得报告它们通过。外部手动代码修改和多会话并写尚无自动检测，不得把本工具描述为完整隔离器。
 
