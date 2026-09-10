@@ -6,6 +6,36 @@ let catalog, busy = false, modelMode = 'account', activeQuestion, localBusy = fa
 const questionQueue = [], widgets = new Map(), statuses = new Map();
 const call = (action, data) => api.invoke(action, data).catch(error => { throw new Error(error.message.replace(/^Error invoking remote method '[^']+': Error: /, '')); });
 const connected = () => catalog?.config && (catalog.config.provider === 'storm-proxy' ? catalog.hasProxyKey : catalog.providers.some(p => p.id === catalog.config.provider && p.connected));
+let updateState;
+function renderUpdate(state) {
+  updateState = state;
+  $('app-version').textContent = state.version;
+  $('update-version').textContent = `当前版本 ${state.version}`;
+  $('update-message').textContent = state.message;
+  $('update-release').textContent = state.release ? `新版本 ${state.release}` : '';
+  $('update-release').hidden = !state.release;
+  $('update-notes').textContent = state.notes;
+  $('update-notes').hidden = !state.notes;
+  $('update-check').disabled = !state.canCheck;
+  $('update-install').hidden = !state.canInstall && state.phase !== 'installing';
+  $('update-install').disabled = !state.canInstall || busy || localBusy || Boolean(activeQuestion);
+  $('updates-open').classList.toggle('update-ready', state.canInstall);
+  $('updates-open').title = state.canInstall ? '新版已准备好，点击查看' : '查看版本与软件更新';
+}
+async function updatesOpen() {
+  if ($('updates').open) return;
+  if (document.querySelector('dialog[open]')) { notice('请先完成当前弹窗，再打开左下角的软件更新。'); return; }
+  try { renderUpdate(await call('updateStatus')); $('updates').showModal(); }
+  catch (error) { notice(error.message); }
+}
+$('updates-open').onclick = updatesOpen;
+$('updates-close').onclick = () => $('updates').close();
+$('update-check').onclick = async () => { try { renderUpdate(await call('checkUpdate')); } catch (error) { $('update-message').textContent = error.message; } };
+$('update-install').onclick = async () => {
+  if ($('prompt').value.trim()) { $('update-message').textContent = '输入框里还有未发送的内容，请先发送或保存，再重启安装。'; return; }
+  try { renderUpdate(await call('installUpdate')); } catch (error) { $('update-message').textContent = error.message; }
+};
+$('release-page').onclick = () => call('releasePage').catch(error => { $('update-message').textContent = error.message; });
 function notice(message) { $('notice-text').textContent = message; $('notice').hidden = !message; }
 function feedback(message, tone = 'error') { $('model-feedback').textContent = message; $('model-feedback').dataset.tone = tone; $('model-feedback').hidden = !message; }
 function setBusy(value) {
@@ -17,6 +47,7 @@ function setBusy(value) {
   const accountReady = catalog?.providers.some(p => p.id === $('provider').value && p.connected);
   $('save-model').disabled = working || (modelMode === 'account' && !accountReady);
   $('test-model').disabled = working || (modelMode === 'account' && !accountReady);
+  if (updateState) renderUpdate(updateState);
 }
 async function run(action, onError = notice) {
   if (localBusy) return;
@@ -266,6 +297,8 @@ function updateProgress() {
   $('plugin-status').textContent = [...statuses.values()].filter(Boolean).join('\n') || '暂无额外状态';
 }
 api.onEvent(event => {
+  if (event.type === 'update') renderUpdate(event.state);
+  if (event.type === 'open-updates') updatesOpen();
   if (event.type === 'project') {
     widgets.clear(); statuses.clear(); updateProgress(); stickToBottom = true;
     $('messages').replaceChildren(welcome); lastMessage = undefined;
@@ -296,4 +329,5 @@ api.onEvent(event => {
   if (event.type === 'auth') authEvent(event.event);
   if (event.type === 'auth-browser-error') feedback(event.message);
 });
+await call('updateStatus').then(renderUpdate).catch(error => notice(error.message));
 await run(async () => updateCatalog(await call('catalog')));

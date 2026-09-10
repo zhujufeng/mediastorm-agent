@@ -1,6 +1,6 @@
 {
   "name": "mediastorm-agent",
-  "version": "0.0.0",
+  "version": "0.3.0",
   "private": true,
   "description": "MediaStorm 公司 AI 开发助手：让代码可交付、可理解、可维护。",
   "type": "module",
@@ -15,8 +15,11 @@
     "desktop": "electron .",
     "desktop:runtime": "node scripts/prepare-desktop-runtime.mjs",
     "desktop:package": "node scripts/package-mac.mjs",
-    "check:desktop": "node scripts/check-desktop-render.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
-    "check:mac-package": "node scripts/check-mac-package.mjs"
+    "check:desktop": "node scripts/check-updates.mjs && node scripts/check-desktop-render.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
+    "check:mac-package": "node scripts/check-mac-package.mjs",
+    "check:updates": "node scripts/check-updates.mjs",
+    "desktop:release": "node scripts/package-mac.mjs --release",
+    "desktop:publish": "node scripts/publish-mac.mjs"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "0.9.4",

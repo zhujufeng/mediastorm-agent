@@ -46,3 +46,17 @@ OAuth 的 source=auth / promptType 原样传给 renderer，manual_code 与本机
 SessionManager.list/open 管理当前项目历史，只暴露 id/标题/时间/是否当前；resume 在 worker 校验 id 所属 cwd 和真实路径，不接受任意文件路径。实时与历史消息只发 user/assistant/toolResult 三类，内部 custom 上下文不可展示。
 
 check:mac-package 同时从独立应用副本加载 Markdown 与真实 OAuth 回归，确保 marked 等传递依赖实际随包、回调桥接仍可用。
+
+## Mac 软件更新与发布
+
+package.json 为唯一应用版本来源，锁文件根版本同步；HTML、packager、DMG/ZIP 和检查读取该版本。打包 package.json 附带 sourceCommit 与 releaseChannel；只有显式 --release、干净源码、Developer ID 身份及 notarytool profile 才能生成 stable 包。
+
+主进程通过 desktop/updates.mjs 接 Electron autoUpdater，更新源固定到本仓库的 update.electronjs.org darwin-arm64 端点；renderer 只能请求 updateStatus/checkUpdate/installUpdate/releasePage，不接受任意更新 URL。状态查询与更新动作在 worker boot 门槛之前处理，模型故障不能阻断软件修复入口。开发、本机试用、非支持架构或未移入 Applications 的包不启用原地更新。
+
+原生事件拥有检查/下载/就绪/错误状态；重复检查不发第二次请求，错误可重试。安装必须在空闲、无工作流确认时，由原生确认框明确选择；主进程持有 operation 直到安全关闭 worker 并调用 quitAndInstall。窗口 close 隐藏逻辑通过 quitting 放行更新退出，避免下载后无法替换。未发送的编辑内容在 renderer 阻止重启；任务/对话仍由原 worker 持久化。
+
+正式签名发生在 packager 链接恢复之后，复用其锁定的 @electron/osx-sign，启用 hardened runtime 与 JIT entitlement。应用公证通过并 staple 后再制作用于更新的 ZIP；DMG 另签名、公证并 staple。更新 ZIP 解压后也要验证签名与公证，不能只核对旁边的 .app。发布脚本拒绝 local 包、版本/源码不符、未推送源码或检查失败的产物，只创建 Release 草稿；另一台 Mac 及两个实际签名版本之间的升级须独立验证。
+
+签名/公证仅在维护者本机钥匙串配置；不复制到应用，不提交 Git。没有 Developer ID 时只能声明本机试用包与模拟更新状态回归通过，不宣称正式分发或真实升级成功。
+
+锁定的 @electron/osx-sign 2.7.0 导出 `sign`（返回 Promise），不是旧版 `signAsync`；check:updates 在源码模式验证实际导出。

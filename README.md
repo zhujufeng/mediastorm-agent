@@ -2,7 +2,7 @@
 
 基于 [Pi](https://pi.dev) 的桌面 Agent 平台。选择项目，直接说“帮我优化当前项目”，助手会调查问题、逐步澄清需求，确认方案后完成实现与检查，交付时由你验收。
 
-当前为 **0.2.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+当前为 **0.3.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
 
 ## 已有能力
 
@@ -45,7 +45,7 @@ npm run desktop:package
 npm run check:mac-package
 ```
 
-生成 `dist/MediaStorm-Agent-0.2.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
+生成 `dist/MediaStorm-Agent-0.3.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
 
 **这是预览版本。** 已验证 OpenAI 浏览器授权、实际模型请求和本机桌面操作；其他账户、真实中转站业务任务及另一台 Mac 安装仍需验收。当前只有本机 ad-hoc 签名，尚未完成 Developer ID 签名和 Apple 公证。详细操作及验证范围见[桌面试用说明](docs/desktop-pilot.md)。
 
@@ -78,3 +78,5 @@ python3 .trellis/scripts/get_context.py
 - 桌面交互参考：[pi-agent-desktop](https://github.com/abcwyc/pi-agent-desktop)
 
 Trellis 随仓库保留的许可见 [.trellis/LICENSE](.trellis/LICENSE)；其他依赖的许可保留在各包中。
+
+软件内更新与维护者发布流程见[Mac 安装与更新发布](docs/releasing.md)。当前试用包尚未完成签名公证，完整升级链路仍待验证。

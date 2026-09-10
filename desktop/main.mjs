@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
+import { app, autoUpdater, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { fork, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { atomicWrite } from './store.mjs';
+import { attachUpdates } from './updates.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 app.setName('MediaStorm Agent');
@@ -20,6 +21,34 @@ else {
   });
   app.on('second-instance', () => { window?.show(); window?.focus(); });
   app.whenReady().then(async () => {
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const updates = attachUpdates(autoUpdater, {
+    version: app.getVersion(),
+    unavailable: !app.isPackaged ? '当前是开发版本。应用内更新在正式安装版中提供。' :
+      manifest.releaseChannel !== 'stable' ? '当前是本机试用包。请安装正式发布版以启用应用内更新。' :
+      process.platform !== 'darwin' || process.arch !== 'arm64' ? '当前系统暂不支持应用内更新。' :
+      !app.isInApplicationsFolder() ? '请先把应用移入 Applications，再重新打开以使用更新。' : '',
+    publish: state => send({ type: 'update', state }),
+    isBusy: () => operation || running || questions.size > 0 || quitting,
+    restart: async () => {
+      operation = true;
+      try {
+        const answer = await dialog.showMessageBox(window, { type: 'question', title: '重启并安装更新',
+          message: '现在重启 MediaStorm Agent？', detail: '登录、项目和已保存的对话会保留。未发送的输入请先保存。',
+          buttons: ['稍后', '重启并安装'], defaultId: 0, cancelId: 0 });
+        if (answer.response !== 1) return false;
+        if (child?.connected) {
+          let timer;
+          try { await Promise.race([request('close'), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('助手尚未安全退出，请稍后重试。')), 15000); })]); }
+          finally { clearTimeout(timer); }
+        }
+        quitting = true;
+        try { autoUpdater.quitAndInstall(); }
+        catch (error) { quitting = false; throw error; }
+        return true;
+      } finally { operation = false; }
+    },
+  });
   const dataDir = app.getPath('userData'); mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const secretFile = join(dataDir, 'credentials.enc');
   const runtime = join(root, 'runtime');
@@ -96,7 +125,7 @@ else {
   }
   createWindow();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'MediaStorm Agent', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+    { label: 'MediaStorm Agent', submenu: [{ role: 'about' }, { label: '检查更新…', click: () => { window.show(); window.focus(); send({ type: 'open-updates' }); } }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }] },
   ]));
@@ -109,6 +138,11 @@ else {
   });
   ipcMain.handle('storm:invoke', async (event, action, data = {}) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('非法调用来源。');
+    if (action === 'updateStatus') return updates.snapshot();
+    if (action === 'checkUpdate') return updates.check();
+    if (action === 'installUpdate') return updates.install();
+    if (action === 'releasePage') { await shell.openExternal('https://github.com/zhujufeng/mediastorm-agent/releases'); return true; }
+    if (quitting) throw new Error('应用正在退出，请稍候。');
     await boot; if (bootError) throw bootError;
     if (action === 'answer') {
       const question = questions.get(data.id);

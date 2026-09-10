@@ -26,7 +26,7 @@
   <nav id="recent" aria-label="最近项目"></nav>
   <div class="section-heading history-heading"><span>当前项目的对话</span></div>
   <nav id="sessions" class="session-list" aria-label="对话历史"><p class="sidebar-empty">选好项目，就可以开始对话。</p></nav>
-  <div class="sidebar-bottom"><button id="settings-open" class="nav-button idle-only"><svg><use href="#i-settings"/></svg><span>模型与连接<small id="connection-label">尚未连接</small></span><span id="connection-dot" class="status-dot"></span></button><div class="local-meta">在你的 Mac 上工作 <span>0.2.0</span></div></div>
+  <div class="sidebar-bottom"><button id="settings-open" class="nav-button idle-only"><svg><use href="#i-settings"/></svg><span>模型与连接<small id="connection-label">尚未连接</small></span><span id="connection-dot" class="status-dot"></span></button><button id="updates-open" class="local-meta text-button" title="查看版本与软件更新"><span>软件更新</span><span id="app-version"></span></button></div>
 </aside>
 <main>
   <header class="topbar"><div class="project-heading"><span id="project-name">工作台</span><span id="project-path" title="">选择项目，开始协作</span></div><div class="topbar-actions"><button id="changes-open" class="quiet" disabled><svg><use href="#i-code"/></svg>文件改动</button><button id="progress-toggle" class="quiet" aria-expanded="false" aria-controls="progress-panel"><svg><use href="#i-panel"/></svg><span id="phase-label">任务进度</span></button></div></header>
@@ -69,5 +69,6 @@
 </dialog>
 <dialog id="question" aria-labelledby="question-title"><form id="question-form"><div class="eyebrow">需要你的决定</div><h2 id="question-title"></h2><pre id="question-body"></pre><label id="question-label" class="sr-only" for="question-value">你的回答</label><input id="question-value" autocomplete="off"><select id="question-options" aria-label="选择一个选项"></select><div class="dialog-actions"><button id="question-cancel" type="button" class="secondary">暂不继续</button><button id="question-submit" type="submit" class="primary">确认并继续</button></div></form></dialog>
 <dialog id="changes" aria-labelledby="changes-title"><div class="dialog-heading"><div><h2 id="changes-title">文件改动</h2><p>包含打开项目之前已有的改动</p></div><button id="changes-close" class="icon-button" aria-label="关闭文件改动"><svg><use href="#i-close"/></svg></button></div><pre id="changes-body"></pre></dialog>
+<dialog id="updates" aria-labelledby="updates-title"><div class="dialog-heading"><div><h2 id="updates-title">软件更新</h2><p id="update-version"></p></div><button id="updates-close" class="icon-button" aria-label="关闭软件更新"><svg><use href="#i-close"/></svg></button></div><p id="update-message" role="status">正在读取版本…</p><h3 id="update-release"></h3><pre id="update-notes" hidden></pre><p class="field-hint">更新保留登录、项目和已保存的对话。助手执行期间不会重启安装。</p><div class="dialog-actions"><button id="release-page" class="quiet">下载与版本记录</button><button id="update-check" class="secondary" disabled>检查更新</button><button id="update-install" class="primary" hidden>重启并安装</button></div></dialog>
 <script src="app.js" type="module"></script>
 </body></html>
