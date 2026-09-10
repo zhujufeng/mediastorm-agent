@@ -12,12 +12,11 @@ Read README.md, docs/pi-research.md, and the current task's prd.md.
 - [Quality and SDK check contract](quality-guidelines.md)
 - [Error handling](error-handling.md)
 - [Logging](logging-guidelines.md)
-- [Database status](database-guidelines.md)
 - [Pi 工作流契约](pi-workflow.md)
 - [Mac 桌面运行时](desktop-runtime.md)
 
 ## Quality Check
 
-Run npm run check. For changes to this check, also run node --check scripts/check-pi.mjs.
+Run npm run check:all on a Mac with the prepared desktop runtime. npm run check includes repository/syntax, SDK and workflow checks; npm run check:desktop includes the desktop regressions. Packaging changes also require check:mac-package after a fresh build.
 
-No standalone linter or TypeScript compiler is configured at this stage. Do not report either as passed. Add suitable checks when actual application code is introduced.
+There is no database, standalone linter or TypeScript compiler. Do not report them as checked; use the real runtime validation and executable regression checks.

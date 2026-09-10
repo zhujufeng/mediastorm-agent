@@ -54,6 +54,10 @@ npm run desktop:publish -- /path/to/release-notes.md
 
 首次 DMG 安装后需移入 Applications 再运行；直接从磁盘镜像运行时不会启用原地升级。系统会按用户权限请求必要的安装许可。当前只支持 macOS 13.5+ / arm64；Windows 和 Intel Mac 不共用这一更新包。
 
+## 构建目录清理
+
+打包 staging 在系统临时目录独立创建，成功或失败都会清理。安装产物写入 dist；发布并验证下载后，可运行 `npm run clean` 清理本地安装产物与运行时下载缓存。GitHub Releases 中的已发布版本和本机账户、项目记忆不受影响。
+
 ## 验证与撤回
 
 - `npm run check:updates`：用真实状态桥接和模拟原生事件，检查重复调用、错误重试、未签名版本禁用、忙时拒绝、取消和安全关闭失败。

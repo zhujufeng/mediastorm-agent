@@ -35,6 +35,8 @@ CredentialStore 的修改串行且失败不覆盖。主进程使用 safeStorage 
 
 npm run check 保留原 SDK/工作流回归；npm run check:desktop 用真实 SDK、运行时、临时项目和回环 HTTP 模型替身验证流式响应、恢复、凭据绑定、确认/取消与只读差异预览。后者需环境允许监听 127.0.0.1，不访问外部模型。可传安装包 Contents/Resources/app 目录，验证脱离源码后的运行路径。
 
+staging 使用系统临时目录的 mkdtemp，在 finally 中清理，DMG 组装目录同样位于 staging 内；不将整份生产依赖留在源码 .local 中。npm run clean 可删除 dist 与下载缓存，但保留 runtime、CLI 最近项目及所有用户账户/任务。
+
 packager 必须设置 derefSymlinks:false，保留 CodeGraph/Python/Node 的相对启动链接。只验证源目录或 SDK 注册不能发现打包链接损坏；发布检查需对脱离源码的应用副本运行每个运行时的 --version 与完整桌面回归。
 
 packager 20.3.0 还会将保留的链接改为 staging 绝对地址。签名前按 staging 中的相对关系恢复安装包链接，拒绝越界/缺失目标；DMG 创建前必须通过 codesign --verify --deep --strict。独立目录测试须检查所有链接目标在应用包内，避免 staging 仍存在时得到假通过。

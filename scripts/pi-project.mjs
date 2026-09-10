@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -22,10 +22,8 @@ export function readRecentProjects(file = recentFile) {
   return recent;
 }
 
-export function projectChoices(recent, pilotDir = join(repo, ".local/colleague-review")) {
-  const pilots = existsSync(pilotDir) ? readdirSync(pilotDir, { withFileTypes: true })
-    .filter(item => item.isDirectory()).map(item => join(pilotDir, item.name)) : [];
-  return [...new Set([...recent, ...pilots, repo]
+export function projectChoices(recent) {
+  return [...new Set([...recent, repo]
     .filter(path => existsSync(join(path, ".git"))).map(path => realpathSync(path)))];
 }
 
@@ -43,7 +41,7 @@ export function rememberProject(root, file = recentFile) {
 
 export async function chooseProject(choices) {
   console.log("\nMediaStorm Agent · 选择本次工作的项目\n");
-  choices.forEach((path, index) => console.log(`${index + 1}. ${path === repo ? "开发平台本身（不是同事项目）" : basename(path)}\n   ${path}`));
+  choices.forEach((path, index) => console.log(`${index + 1}. ${path === repo ? "MediaStorm Agent 平台源码" : basename(path)}\n   ${path}`));
   if (process.platform === "darwin") console.log("0. 打开其他项目…（选择文件夹）");
   console.log("回车打开第 1 项；输入序号或项目路径；q 退出。最近打开的项目排在前面。\n");
   const ui = createInterface({ input: process.stdin, output: process.stdout, prompt: "选择项目 > " });

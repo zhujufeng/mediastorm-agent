@@ -8,7 +8,10 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node scripts/check-pi.mjs && node scripts/check-workflow.mjs",
+    "check": "npm run check:repository && node scripts/check-pi.mjs && node scripts/check-workflow.mjs",
+    "check:repository": "node scripts/check-repository.mjs",
+    "check:all": "npm run check && npm run check:desktop",
+    "clean": "node scripts/clean.mjs",
     "check:workflow": "node scripts/check-workflow.mjs",
     "pi": "node scripts/pi-project.mjs",
     "pi:project": "node scripts/pi-project.mjs",

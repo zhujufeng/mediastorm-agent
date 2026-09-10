@@ -6,7 +6,8 @@ Verify that the pinned Pi SDK and the actual Trellis extension can initialize to
 
 ## 2. Commands and APIs
 
-- npm run check → node scripts/check-pi.mjs, then node scripts/check-workflow.mjs.
+- npm run check → repository/syntax/lockfile check, then scripts/check-pi.mjs and scripts/check-workflow.mjs.
+- npm run check:all → check plus check:desktop; CI additionally builds and verifies the independent Mac package.
 - ModelRuntime.create, DefaultResourceLoader.reload, createAgentSession, session.bindExtensions, session.dispose.
 - Official version-specific API notes: docs/pi-research.md.
 
@@ -47,4 +48,4 @@ Correct: inspect loader.getExtensions().extensions for registration, then assert
 
 Wrong: report a business task as complete because the model said it passed.
 
-Correct: check the actual command outcome and relevant artifact against agreed requirements. This remains future product work.
+Correct: check the actual command outcome and relevant artifact against agreed requirements. The workflow records real checks separately from the model response.

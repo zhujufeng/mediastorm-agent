@@ -19,7 +19,8 @@ runtime/
 .trellis/tasks/*
 !.trellis/tasks/.gitkeep
 .trellis/workspace/
-/docs/colleague-project-review.md
 credentials.enc
 *.pem
 *.key
+*.dmg
+*.zip

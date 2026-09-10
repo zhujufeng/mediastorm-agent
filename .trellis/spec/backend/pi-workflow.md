@@ -36,7 +36,7 @@ before_agent_start 为这五条记录提供交付摘要、运行/检查说明（
 
 `scripts/pi-project.mjs` 为外部 Git 根目录提供首次准备和启动：复制固定 Trellis 脚本与工作流，生成项目自己的任务目录和已有规则索引，不复制本原型的 SDK 规范或任务。已有配置只校验、不覆盖。CLI 用显式扩展/技能路径并关闭默认资源和上下文发现，cwd 为目标项目；工作法引用扩展自身定位的绝对技能路径。`--prepare` 只准备。此入口无自动升级或运行环境打包。
 
-`npm run pi` 和 Mac 的 `启动助手.command` 复用同一入口，无参数时先选择项目。候选由安装目录 `.local/projects.json` 最近路径、`.local/colleague-review` 直接 Git 子目录和平台根目录组成；按真实路径去重，缺失项不显示，平台明确标识，同名目录展示完整路径。最近列表最多十项，仅在创建 Pi 子进程后原子保存；取消和 `--prepare` 不写入。历史文件格式错误保留并报错。Mac 用 osascript 的 choose folder 打开其他项目，不经 shell 拼接路径。显式路径、--version、--help 保留；版本/帮助不初始化项目。扩展 refresh 在有任务、无任务时均显示项目名与绝对路径；状态栏含项目名，避免误把平台工作记录当业务记忆。
+`npm run pi` 和 Mac 的 `启动助手.command` 复用同一入口，无参数时先选择项目。候选只由安装目录 `.local/projects.json` 最近路径和平台根目录组成，不扫描业务副本；按真实路径去重，缺失项不显示，平台明确标识，同名目录展示完整路径。最近列表最多十项，仅在创建 Pi 子进程后原子保存；取消和 `--prepare` 不写入。历史文件格式错误保留并报错。Mac 用 osascript 的 choose folder 打开其他项目，不经 shell 拼接路径。显式路径、--version、--help 保留；版本/帮助不初始化项目。扩展 refresh 在有任务、无任务时均显示项目名与绝对路径；状态栏含项目名，避免误把平台工作记录当业务记忆。
 
 `TRELLIS_CONTEXT_ID` 覆盖值沿用原环境，否则与 Trellis 相同使用 `pi_<sessionId>`。检查使用本机 Bash，120 秒超时，透传 AbortSignal。未提供系统级执行隔离；第一轮同一任务只允许一个会话操作。
 

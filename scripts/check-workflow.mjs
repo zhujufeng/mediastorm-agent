@@ -53,7 +53,8 @@ try {
   rememberProject(otherProject, recentFile);
   rememberProject(project, recentFile);
   assert.deepEqual(readRecentProjects(recentFile), [project, otherProject], "Reopening moves a project first without duplicates");
-  assert.deepEqual(projectChoices([project, join(temporary, "missing"), otherProject, project], join(temporary, "a")),
+  assert.deepEqual(projectChoices([]), [realpathSync(repo)], "A fresh install does not discover unrelated projects");
+  assert.deepEqual(projectChoices([project, join(temporary, "missing"), otherProject, project]),
     [project, otherProject, realpathSync(repo)], "Keep same-name projects distinct and omit missing directories");
   for (const broken of ["{", '{"paths":[]}', '["relative/path"]']) {
     writeFileSync(recentFile, broken);

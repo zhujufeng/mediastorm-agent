@@ -49,8 +49,7 @@ npm run desktop
 ## 构建 Mac 安装包
 
 ```sh
-npm run check
-npm run check:desktop
+npm run check:all
 npm run desktop:package
 npm run check:mac-package
 ```
@@ -78,11 +77,13 @@ python3 .trellis/scripts/init_developer.py your-name
 python3 .trellis/scripts/get_context.py
 ```
 
-公开仓库包含源码、锁定依赖、工作流、工程规范、检查和打包脚本。安装包位于 GitHub Releases。登录凭据、同事的私有项目副本、本机任务历史和开发日志留在本地。
+仓库只维护平台源码、锁定依赖、工作流、工程规范、检查和打包脚本。业务项目放在仓库之外，由使用者主动打开；测试使用临时项目。安装包位于 GitHub Releases，登录凭据、本机任务历史和开发日志不提交 Git。
+
+日常验证统一运行 `npm run check:all`；GitHub Actions 会在干净的 Mac arm64 环境执行同一检查及独立打包验证。`npm run clean` 清理本地安装产物与下载缓存。目录职责和开发边界见[工程结构与开发流程](docs/development-plan.md)。
 
 ## 文档与上游
 
-- [Pi 定制调研](docs/pi-research.md)、[工作流设计](docs/pi-workflow-proposal.md)、[开发计划](docs/development-plan.md)
+- [Pi 集成依据](docs/pi-research.md)、[工程结构与开发流程](docs/development-plan.md)
 - [后端约定](.trellis/spec/backend/index.md)、[前端约定](.trellis/spec/frontend/index.md)
 - 上游：[Pi](https://github.com/earendil-works/pi)、[Trellis](https://github.com/mindfold-ai/Trellis)、[Ponytail](https://pi.dev/packages/@dietrichgebert/ponytail)、[CodeGraph](https://github.com/colbymchenry/codegraph)
 - [开发自己的 Agent 与插件](docs/agent-development.md)
