@@ -1,0 +1,34 @@
+{
+  "name": "mediastorm-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MediaStorm 公司 AI 开发助手：让代码可交付、可理解、可维护。",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node scripts/check-pi.mjs && node scripts/check-workflow.mjs",
+    "check:workflow": "node scripts/check-workflow.mjs",
+    "pi": "node scripts/pi-project.mjs",
+    "pi:project": "node scripts/pi-project.mjs",
+    "desktop": "electron .",
+    "desktop:runtime": "node scripts/prepare-desktop-runtime.mjs",
+    "desktop:package": "node scripts/package-mac.mjs",
+    "check:desktop": "node scripts/check-desktop-render.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
+    "check:mac-package": "node scripts/check-mac-package.mjs"
+  },
+  "dependencies": {
+    "@colbymchenry/codegraph": "0.9.4",
+    "@dietrichgebert/ponytail": "4.9.0",
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@vndv/pi-codegraph": "0.1.10",
+    "dugite": "3.2.3"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.3.0"
+  },
+  "main": "desktop/main.mjs"
+}

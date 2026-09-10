@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+.env
+.env.*
+!.env.example
+.local/
+*.log
+**/__pycache__/
+**/*.pyc
+.pi/auth.json
+.pi/sessions/
+.pi/cache/
+.codegraph/
+runtime/
+
+# Private development records and local account data
+.trellis/tasks/*
+!.trellis/tasks/.gitkeep
+.trellis/workspace/
+/docs/colleague-project-review.md
+credentials.enc
+*.pem
+*.key

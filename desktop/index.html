@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>MediaStorm Agent</title><link rel="stylesheet" href="app.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9H3z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H4l1-5a8 8 0 1 1 15-3Z"/><path d="M8 10h8M8 14h5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m7 10 5-5 5 5M12 5v14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4 10 14M10 5H5v14h14v-5"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.8 6.2L21 12l-6.2 2.8L12 21l-2.8-6.2L3 12l6.2-2.8Z"/></symbol>
+</defs></svg>
+<aside class="sidebar">
+  <div class="brand"><span class="mark" aria-hidden="true">m<span>·</span></span><strong>MediaStorm</strong><span class="preview">预览</span></div>
+  <button id="fresh" class="nav-button idle-only" disabled><svg><use href="#i-plus"/></svg>新建对话<kbd>⌘ N</kbd></button>
+  <div class="section-heading"><span>项目</span><button id="choose" class="icon-button idle-only" title="打开本地 Git 项目" aria-label="打开项目"><svg><use href="#i-plus"/></svg></button></div>
+  <nav id="recent" aria-label="最近项目"></nav>
+  <div class="section-heading history-heading"><span>当前项目的对话</span></div>
+  <nav id="sessions" class="session-list" aria-label="对话历史"><p class="sidebar-empty">选好项目，就可以开始对话。</p></nav>
+  <div class="sidebar-bottom"><button id="settings-open" class="nav-button idle-only"><svg><use href="#i-settings"/></svg><span>模型与连接<small id="connection-label">尚未连接</small></span><span id="connection-dot" class="status-dot"></span></button><div class="local-meta">在你的 Mac 上工作 <span>0.2.0</span></div></div>
+</aside>
+<main>
+  <header class="topbar"><div class="project-heading"><span id="project-name">工作台</span><span id="project-path" title="">选择项目，开始协作</span></div><div class="topbar-actions"><button id="changes-open" class="quiet" disabled><svg><use href="#i-code"/></svg>文件改动</button><button id="progress-toggle" class="quiet" aria-expanded="false" aria-controls="progress-panel"><svg><use href="#i-panel"/></svg><span id="phase-label">任务进度</span></button></div></header>
+  <div id="notice" class="notice" role="alert" hidden><span id="notice-text"></span><button id="notice-close" class="icon-button" aria-label="关闭提示"><svg><use href="#i-close"/></svg></button></div>
+  <div class="workspace">
+    <section class="conversation" aria-label="对话">
+      <div id="messages" class="messages" tabindex="0" aria-label="对话记录">
+        <div id="welcome" class="welcome">
+          <div class="welcome-mark" aria-hidden="true"><svg><use href="#i-spark"/></svg></div>
+          <h1 id="welcome-title">把想法交给助手，把决定留给你。</h1>
+          <p id="welcome-description">从接手一个项目开始，一起把它变得更好。</p>
+          <div id="setup-steps" class="setup-steps">
+            <button id="welcome-setup" class="setup-step idle-only"><span class="step-number">1</span><span><strong>连接模型</strong><small id="setup-model-detail">使用订阅账户或中转站</small></span><span class="step-arrow">→</span></button>
+            <button id="welcome-project" class="setup-step idle-only"><span class="step-number">2</span><span><strong>打开项目</strong><small id="setup-project-detail">选择电脑上的项目文件夹</small></span><span class="step-arrow">→</span></button>
+          </div>
+          <div class="suggestions"><span class="suggestions-label">可以这样开始</span><button data-prompt="帮我优化当前项目。先了解现状，找出最值得优先处理的问题。"><svg><use href="#i-code"/></svg>帮我优化当前项目<span>↗</span></button><button data-prompt="回顾这个项目上次已验收的改动、实际检查结果和遗留问题。"><svg><use href="#i-chat"/></svg>继续上次的工作<span>↗</span></button><button data-prompt="我有一个开发需求，请先帮我梳理目标和验收标准，再和我确认方案。"><svg><use href="#i-spark"/></svg>一起梳理一个新需求<span>↗</span></button></div>
+        </div>
+      </div>
+      <div class="composer-wrap"><div id="activity" class="activity" role="status">准备就绪</div><form id="composer"><label class="sr-only" for="prompt">发给助手的消息</label><textarea id="prompt" rows="2" placeholder="描述你想做的事，或先聊聊你的想法…" maxlength="50000"></textarea><div class="composer-actions"><div class="composer-options"><label class="sr-only" for="agent">工作助手</label><select id="agent" class="idle-only" aria-describedby="agent-description"></select><button type="button" id="composer-model" class="quiet idle-only"><span id="model-label">连接模型</span><span aria-hidden="true">⌄</span></button></div><button type="button" id="stop" class="stop-button" hidden aria-label="停止当前操作"><span></span></button><button type="submit" id="send" class="send-button idle-only" aria-label="发送消息"><svg><use href="#i-arrow"/></svg></button></div></form><div class="composer-note"><span id="agent-description">关键节点由你确认，经验保留在项目。</span><span>↵ 发送 · ⇧ ↵ 换行</span></div></div>
+    </section>
+    <aside id="progress-panel" class="progress-panel" aria-label="任务进度" hidden><div class="section-heading"><span>本轮任务</span><button id="progress-close" class="icon-button" aria-label="收起任务进度"><svg><use href="#i-close"/></svg></button></div><h2 id="task-title">从一个具体目标开始</h2><ol id="phases"><li>理解与澄清</li><li>确认方案</li><li>实现与检查</li><li>交付与验收</li></ol><div class="progress-copy"><span class="section-caption">当前工作</span><p id="progress-summary">助手会先了解项目，再与你确认本轮目标。</p><span class="section-caption">下一步</span><p id="progress-next">描述你想改善的地方。</p></div><details class="plugin-details"><summary>工作流状态</summary><pre id="plugin-status"></pre></details><p class="small muted">关键决定由你确认，任务和已验收经验保存在当前项目。</p></aside>
+  </div>
+</main>
+<dialog id="settings" aria-labelledby="settings-title">
+  <aside class="settings-nav"><span class="settings-eyebrow">偏好设置</span><h2 id="settings-title">模型与连接</h2><div class="tabs" role="group" aria-label="接入方式"><button type="button" id="account-tab" class="idle-only" aria-pressed="true"><svg><use href="#i-link"/></svg><span>订阅账户<small>浏览器授权登录</small></span></button><button type="button" id="proxy-tab" class="idle-only" aria-pressed="false"><svg><use href="#i-code"/></svg><span>中转站 / API<small>使用自己的服务</small></span></button></div><p>登录信息仅保存在本机，<br>由 Mac 钥匙串保护。</p></aside>
+  <form id="model-form" class="settings-content"><div class="dialog-heading"><div><h3 id="connection-title">连接你的订阅账户</h3><p id="connection-description">在浏览器登录，完成后回到这里。</p></div><button type="button" id="settings-close" class="icon-button" aria-label="关闭模型设置"><svg><use href="#i-close"/></svg></button></div>
+    <div id="account-fields"><label for="provider">服务提供商</label><select id="provider" class="idle-only"></select><div class="account-status-row"><span id="account-status" class="small muted"></span><button type="button" id="logout" class="text-button idle-only" hidden>退出账户</button></div>
+      <div id="login-method-row" class="field-row"><label for="login-method">登录方式</label><select id="login-method" class="idle-only"><option value="browser">浏览器登录（推荐）</option><option value="device_code">设备码登录</option></select></div>
+      <button type="button" id="login" class="primary login-button idle-only"><svg><use href="#i-link"/></svg><span id="login-label">在浏览器中登录</span></button>
+      <section id="auth-progress" class="auth-progress" aria-label="授权进度" hidden>
+        <div class="auth-heading"><span class="spinner" aria-hidden="true"></span><strong id="auth-title">正在启动登录</strong></div><p id="auth-description" role="status">请稍候…</p><div id="auth-code" class="device-code" hidden></div><div id="auth-links" class="auth-links"></div>
+        <details id="auth-manual" hidden><summary id="auth-manual-summary">浏览器已完成，但这里没有反应？</summary><p id="auth-help">复制浏览器完成授权后的完整地址（通常以 http://localhost 开头），粘贴到下方。正常登录无需填写。</p><label id="auth-input-label" for="auth-value">授权结果</label><input id="auth-value" autocomplete="off" spellcheck="false" placeholder="粘贴回调地址或授权码"><select id="auth-options" aria-label="登录选项" hidden></select><button type="button" id="auth-submit" class="secondary">提交授权结果</button></details>
+        <button type="button" id="cancel-operation" class="text-button">取消登录</button>
+      </section>
+      <div class="model-field"><label for="account-model">使用的模型</label><select id="account-model" class="idle-only"></select><p class="field-hint">模型能否使用，取决于该订阅的实际权限。</p></div>
+    </div>
+    <div id="proxy-fields" hidden><label for="base-url">API 地址</label><input id="base-url" class="idle-only" type="url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false"><p class="field-hint">填写中转站提供的接口地址，包括它要求的 /v1 路径。</p><label for="api">接口协议</label><select id="api" class="idle-only"><option value="openai-completions">OpenAI Chat Completions</option><option value="openai-responses">OpenAI Responses</option><option value="anthropic-messages">Anthropic Messages</option></select><label for="proxy-model">模型 ID</label><input id="proxy-model" class="idle-only" placeholder="例如：服务提供的模型名称" autocomplete="off" spellcheck="false"><label for="key">API 密钥</label><input id="key" class="idle-only" type="password" placeholder="粘贴 API 密钥" autocomplete="off"><details class="advanced-settings"><summary>高级设置</summary><div class="field-pair"><div><label for="context-window">上下文长度</label><input id="context-window" class="idle-only" type="number" min="64" max="2000000" value="128000"></div><div><label for="max-tokens">最大输出</label><input id="max-tokens" class="idle-only" type="number" min="64" value="8192"></div></div><label class="checkbox"><input id="reasoning" class="idle-only" type="checkbox">模型支持推理参数</label><p class="field-hint">按服务实际支持的值填写。</p></details></div>
+    <div id="model-feedback" class="model-feedback" role="status" hidden></div><div class="dialog-actions"><button type="button" id="test-model" class="secondary idle-only">保存并测试连接</button><button type="button" id="cancel-test" class="quiet" hidden>取消测试</button><button type="submit" id="save-model" class="primary idle-only">使用此模型</button></div>
+  </form>
+</dialog>
+<dialog id="question" aria-labelledby="question-title"><form id="question-form"><div class="eyebrow">需要你的决定</div><h2 id="question-title"></h2><pre id="question-body"></pre><label id="question-label" class="sr-only" for="question-value">你的回答</label><input id="question-value" autocomplete="off"><select id="question-options" aria-label="选择一个选项"></select><div class="dialog-actions"><button id="question-cancel" type="button" class="secondary">暂不继续</button><button id="question-submit" type="submit" class="primary">确认并继续</button></div></form></dialog>
+<dialog id="changes" aria-labelledby="changes-title"><div class="dialog-heading"><div><h2 id="changes-title">文件改动</h2><p>包含打开项目之前已有的改动</p></div><button id="changes-close" class="icon-button" aria-label="关闭文件改动"><svg><use href="#i-close"/></svg></button></div><pre id="changes-body"></pre></dialog>
+<script src="app.js" type="module"></script>
+</body></html>

@@ -1,0 +1,16 @@
+{
+  "enableSkillCommands": true,
+  "extensions": [
+    "./extensions/trellis/index.ts",
+    "../node_modules/@dietrichgebert/ponytail/pi-extension/index.js",
+    "../node_modules/@vndv/pi-codegraph/extensions/codegraph.ts",
+    "./extensions/mediastorm/index.mjs"
+  ],
+  "skills": [
+    "./skills",
+    "../node_modules/@dietrichgebert/ponytail/skills"
+  ],
+  "prompts": [
+    "./prompts"
+  ]
+}
