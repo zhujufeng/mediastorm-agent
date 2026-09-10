@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,7 +145,13 @@ try {
   assert.match(welcome.systemPrompt, /普通咨询直接回答/);
   assert.equal(taskList(project).length, 0, "Injecting guidance alone does not create a task");
   assert.equal(await app.preflight("storm_changes"), undefined, "Read-only project diff needs no implementation approval");
+  execFileSync("git", ["-C", project, "add", "README.md"]);
+  const hook = join(temporary, "fsmonitor.sh"), marker = join(project, "fsmonitor-ran");
+  writeFileSync(hook, '#!/bin/sh\ntouch fsmonitor-ran\n', { mode: 0o700 });
+  execFileSync("git", ["-C", project, "config", "core.fsmonitor", hook]);
   assert.match((await app.tool("storm_changes")).content[0].text, /未跟踪文件/);
+  assert.equal(existsSync(marker), false, "Read-only diff must not execute repository fsmonitor hooks");
+  execFileSync("git", ["-C", project, "config", "--unset", "core.fsmonitor"]);
   assert.equal((await app.preflight("write", { path: "app.js" })).block, true, "No-task requests cannot bypass requirements approval");
   const begun = await app.taskAction({ action: "new", agent: "development", title: "给报表增加筛选" });
   assert.equal(begun.applied, true);

@@ -3,7 +3,7 @@ import { promisify, stripVTControlCharacters } from 'node:util';
 
 // Fixed, read-only commands: no model-supplied Git arguments, paths or executable hooks.
 export async function projectChanges(project, signal) {
-  const git = async args => stripVTControlCharacters((await promisify(execFile)('git', args, {
+  const git = async args => stripVTControlCharacters((await promisify(execFile)('git', ['-c', 'core.fsmonitor=false', ...args], {
     cwd: project, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, signal, timeout: 10000, maxBuffer: 2 * 1024 * 1024,
   })).stdout);
   const status = await git(['status', '--short']);
