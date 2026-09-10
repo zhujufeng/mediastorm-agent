@@ -170,7 +170,7 @@ else {
         const catalog = await request('catalog');
         if (!catalog.recent.includes(data.path)) throw new Error('请通过文件夹选择器打开新项目。');
       }
-      if (!['open', 'fresh', 'resume', 'profile', 'saveModel', 'login', 'logout', 'prompt', 'testModel'].includes(action)) throw new Error('不支持的操作。');
+      if (!['open', 'fresh', 'resume', 'profile', 'saveModel', 'selectModel', 'login', 'logout', 'prompt', 'testModel'].includes(action)) throw new Error('不支持的操作。');
       if (action === 'login') { loggingIn = true; authLinks.clear(); }
       return await request(action, data);
     } finally { if (action === 'login') { loggingIn = false; authLinks.clear(); } operation = false; }

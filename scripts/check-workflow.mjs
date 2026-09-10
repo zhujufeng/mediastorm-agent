@@ -93,7 +93,7 @@ try {
     await loader.reload();
     const loaded = loader.getExtensions();
     assert.deepEqual(loaded.errors, []);
-    assert.equal(loaded.extensions.length, 4, "Load the four configured extensions exactly once");
+    assert.equal(loaded.extensions.length, 5, "Load the five configured extensions exactly once");
     assert.ok(loaded.extensions.some(extension => extension.commands.has("ponytail")));
     assert.ok(loaded.extensions.some(extension => extension.tools.has("codegraph_explore")));
     assert.ok(loader.getSkills().skills.some(skill => skill.name === "mediastorm-workflow"));
@@ -114,7 +114,7 @@ try {
     return {
       session, manager, ctx,
       command: args => extension.commands.get("storm").handler(args, ctx),
-      tool: (name, params = {}, signal) => extension.tools.get(name).definition.execute("test", params, signal, undefined, ctx),
+      tool: (name, params = {}, signal) => loaded.extensions.find(item => item.tools.has(name)).tools.get(name).definition.execute("test", params, signal, undefined, ctx),
       async taskAction(params, signal) {
         const blocked = await this.preflight("storm_task", params, "task-control");
         assert.equal(blocked, undefined, "Task tools pass the actual workflow event gate");
@@ -144,6 +144,8 @@ try {
   assert.match(welcome.systemPrompt, /用户直接描述需求即可/);
   assert.match(welcome.systemPrompt, /普通咨询直接回答/);
   assert.equal(taskList(project).length, 0, "Injecting guidance alone does not create a task");
+  assert.equal(await app.preflight("storm_changes"), undefined, "Read-only project diff needs no implementation approval");
+  assert.match((await app.tool("storm_changes")).content[0].text, /未跟踪文件/);
   assert.equal((await app.preflight("write", { path: "app.js" })).block, true, "No-task requests cannot bypass requirements approval");
   const begun = await app.taskAction({ action: "new", agent: "development", title: "给报表增加筛选" });
   assert.equal(begun.applied, true);

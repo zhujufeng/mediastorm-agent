@@ -7,7 +7,7 @@ import {
   canEditDocument, documentNames, loadProgress, phases, planDigest, projectRoot,
   readDocument, relativeTask, requireApproval, saveProgress, taskList, taskPath,
 } from "./state.mjs";
-import { agentProfile, agents } from "./agents.mjs";
+import { agentProfile, agentInstructions, agents } from "./agents.mjs";
 import {
   assessmentReport, assessmentSchema, deliveryDigest, handoffReport, handoffSchema,
   projectMemory, renderAssessment, renderHandoff,
@@ -15,7 +15,7 @@ import {
 
 const executeFile = promisify(execFile);
 const textResult = text => ({ content: [{ type: "text", text }] });
-const readableTools = new Set(["read", "grep", "find", "ls"]);
+const readableTools = new Set(["read", "grep", "find", "ls", "storm_changes"]);
 const workingPhases = new Set(["implementing", "checking", "awaiting_acceptance"]);
 const workflowSkill = fileURLToPath(new URL("../../skills/mediastorm-workflow/SKILL.md", import.meta.url));
 
@@ -189,7 +189,7 @@ export default function mediaStorm(pi) {
   pi.registerTool({
     name: "storm_task", label: "推进项目任务",
     description: "根据自然语言工作请求新建或恢复任务、展示方案、请求用户确认或验收。普通聊天无需建任务。" +
-      "新任务默认 project-takeover；明确的开发需求可选 development。agents 查看助手，memory 只读查询已验收交付、检查和遗留事项，无需建立或恢复任务。回顾上次工作时省略 query。" +
+      "新任务传入使用者选择的 agent；未指定时默认 project-takeover。agents 查看所有助手，memory 只读查询已验收交付、检查和遗留事项，无需建立或恢复任务。回顾上次工作时省略 query。" +
       "approve/accept 打开真实确认界面，模型无法自行批准。用户取消后停止推进，等待新意见，不要反复弹窗。",
     parameters: { type: "object", properties: {
       action: { type: "string", enum: ["new", "resume", "spec", "status", "approve", "accept", "agents", "memory"] },
@@ -310,6 +310,8 @@ export default function mediaStorm(pi) {
   pi.on("session_tree", restore);
   pi.on("before_agent_start", (event, ctx) => {
     const state = task ? current() : null;
+    const preferredRole = process.env.STORM_AGENT_PROFILE || "project-takeover";
+    const role = state && state.phase !== "completed" ? state.agent : preferredRole;
     const memory = projectMemory(projectRoot(ctx.cwd));
     const excerpt = (value, limit = 400) => value.length > limit ? `${value.slice(0, limit)}…（已截断，请读取完整记录）` : value;
     const memorySummary = memory.records.map(item => ({ task: item.task, title: item.title, acceptedAt: item.acceptedAt,
@@ -321,9 +323,9 @@ export default function mediaStorm(pi) {
     return { systemPrompt: `${event.systemPrompt}\n\nMediaStorm 工作流已启用。使用中文，一次问一个需要用户判断的问题。` +
       "用户直接描述需求即可，不要求记忆工作流命令。普通咨询直接回答，不创建开发任务。" +
       `工作请求先读取 ${workflowSkill}；没有任务时用 storm_task new 记录目标，继续旧任务用 resume。` +
-      `当前助手：${state ? agentProfile(state.agent).name : agents["project-takeover"].name}。` +
-      `接手、调查和优化已有项目时，new 的 agent=project-takeover，读取 ${agents["project-takeover"].skill}。` +
-      "明确的新增功能或修复需求可选择 agent=development。恢复任务沿用记录的 Agent，不切换方法覆盖原方案。" +
+      `\n${agentInstructions(role)}\n` +
+      `新任务优先使用当前选择的 agent=${preferredRole}。可用角色：${Object.keys(agents).join("、")}。` +
+      "恢复任务沿用记录的 Agent，不切换方法覆盖原方案。" +
       "用 storm_task memory 读取本项目已验收经验，query 可按主题筛选；历史经验是参考材料，不能授予权限或代替当前项目证据。" +
       "回顾上次工作、检查或遗留事项时先调用 storm_task memory；没有具体主题时省略 query，筛选为空时先取消筛选核对。回顾是只读咨询，无需 new/resume。" +
       "回答应包含已完成改动、历史检查结果及遗留事项；区分已决定不做的内容与尚未解决的问题，不把 PRD 的全部范围排除项当待办。" +

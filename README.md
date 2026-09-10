@@ -2,15 +2,25 @@
 
 基于 [Pi](https://pi.dev) 的桌面 Agent 平台。选择项目，直接说“帮我优化当前项目”，助手会调查问题、逐步澄清需求，确认方案后完成实现与检查，交付时由你验收。
 
-当前为 **0.3.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+当前为 **0.4.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+
+## 下载安装
+
+**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.4.0/MediaStorm-Agent-0.4.0-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.4.0)
+
+打开 DMG，将应用拖入 Applications，然后从应用程序启动。无需安装 Node、npm 或 Pi。
+
+预览版尚未完成 Apple 签名公证，首次打开可能被 macOS 拦截。确认来自本仓库后，按 [Apple 的打开说明](https://support.apple.com/zh-cn/102445) 操作。当前通过下载新版覆盖应用更新，正式签名版的应用内升级仍待验证。
 
 ## 已有能力
 
 - **项目接手与优化助手**：调查已有 AI 开发项目，提供文件依据、运行说明、改进建议与交付报告。
-- **通用开发助手**：完成明确的新功能和修复需求；两个助手目前共用固定扩展。
+- **通用开发助手**：完成明确的新功能和修复需求。
+- **故障修复与代码审查助手**：提供专门的诊断和审查方法，可在能力库查看职责、步骤与实际提示词。四个角色共用五个基础插件。
 - **可见的任务流程**：需求、方案、实现、检查和验收阶段持续展示，关键节点由使用者确认。
 - **项目记忆**：已验收任务保留决定、检查结果和来源；重新打开项目可以继续工作、检索经验。
-- **模型连接**：支持 Pi 提供的订阅账户登录，以及 OpenAI / Anthropic 兼容中转站。
+- **模型连接**：订阅登录与兼容中转站；输入框旁直接搜索并切换已连接模型，中转站模型可保存后反复选择。
+- **插件可见**：展示真实加载状态、当前可调用的工具及代码索引状态；自研“项目改动”插件提供只读 Git 差异。
 - **桌面操作**：项目选择、流式对话、Markdown、文件差异、历史对话与重启恢复。
 
 Pi SDK 固定为 0.85.1，工作流复用 Trellis 0.6.6，配合 Ponytail 4.9.0 控制不必要的复杂度、CodeGraph 0.9.4 检索代码结构。
@@ -45,7 +55,7 @@ npm run desktop:package
 npm run check:mac-package
 ```
 
-生成 `dist/MediaStorm-Agent-0.3.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
+生成 `dist/MediaStorm-Agent-0.4.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
 
 **这是预览版本。** 已验证 OpenAI 浏览器授权、实际模型请求和本机桌面操作；其他账户、真实中转站业务任务及另一台 Mac 安装仍需验收。当前只有本机 ad-hoc 签名，尚未完成 Developer ID 签名和 Apple 公证。详细操作及验证范围见[桌面试用说明](docs/desktop-pilot.md)。
 
@@ -68,13 +78,14 @@ python3 .trellis/scripts/init_developer.py your-name
 python3 .trellis/scripts/get_context.py
 ```
 
-公开仓库包含源码、锁定依赖、工作流、工程规范、检查和打包脚本。登录凭据、同事的私有项目副本、本机任务历史和开发日志留在本地。
+公开仓库包含源码、锁定依赖、工作流、工程规范、检查和打包脚本。安装包位于 GitHub Releases。登录凭据、同事的私有项目副本、本机任务历史和开发日志留在本地。
 
 ## 文档与上游
 
 - [Pi 定制调研](docs/pi-research.md)、[工作流设计](docs/pi-workflow-proposal.md)、[开发计划](docs/development-plan.md)
 - [后端约定](.trellis/spec/backend/index.md)、[前端约定](.trellis/spec/frontend/index.md)
 - 上游：[Pi](https://github.com/earendil-works/pi)、[Trellis](https://github.com/mindfold-ai/Trellis)、[Ponytail](https://pi.dev/packages/@dietrichgebert/ponytail)、[CodeGraph](https://github.com/colbymchenry/codegraph)
+- [开发自己的 Agent 与插件](docs/agent-development.md)
 - 桌面交互参考：[pi-agent-desktop](https://github.com/abcwyc/pi-agent-desktop)
 
 Trellis 随仓库保留的许可见 [.trellis/LICENSE](.trellis/LICENSE)；其他依赖的许可保留在各包中。

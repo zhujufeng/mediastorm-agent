@@ -226,3 +226,70 @@ summary { cursor: pointer; }
   #model-label { max-width: 110px; }
 }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+/* Keep choices near the conversation; the library carries the longer explanations. */
+#library-open { margin-top: 8px; color: var(--muted); }
+.nav-count { margin-left: auto; font-size: 10px; color: var(--muted); }
+#agent { width: 104px; font-size: 11px; }
+#composer-model { anchor-name: --model-trigger; font-size: 11px; border-left: 0; border-radius: 6px; background: var(--subtle); }
+.composer-note { align-items: center; }
+#composer-plugins { padding: 0; font-size: 10px; margin-left: auto; flex-shrink: 0; }
+#model-picker { position: fixed; position-anchor: --model-trigger; inset: auto; bottom: calc(anchor(top) + 10px); left: anchor(left); position-try-fallbacks: flip-inline, flip-block; margin: 0; width: 354px; max-width: calc(100vw - 40px); max-height: min(510px, 70vh); padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 45px #14213a25; overflow: hidden; }
+#model-picker:popover-open { display: flex; flex-direction: column; }
+.picker-search { display: flex; gap: 6px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.picker-search input { border: 0; background: transparent; padding: 5px; font-size: 12px; }
+.model-options { overflow-y: auto; min-height: 60px; padding: 6px; }
+.model-group { font-size: 10px; color: var(--muted); font-weight: 600; margin: 12px 8px 5px; }
+.model-choice { display: flex; width: 100%; justify-content: space-between; text-align: left; padding: 9px 10px; }
+.model-choice > span:first-child { overflow: hidden; }
+.model-choice strong { display: block; font-weight: 500; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.model-choice small { display: block; color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.model-choice[aria-pressed=true] { background: var(--blue-soft); color: var(--blue); }
+.picker-empty { padding: 15px; color: var(--muted); font-size: 12px; white-space: normal; }
+#picker-feedback { padding: 8px 15px; margin: 0; font-size: 10px; }
+.picker-manage { border-top: 1px solid var(--line); border-radius: 0; justify-content: flex-start; font-size: 11px; padding: 13px 14px; }
+.picker-manage span { margin-left: auto; color: var(--muted); font-size: 10px; }
+#library { width: 890px; height: min(690px, calc(100vh - 64px)); padding: 0; overflow: hidden; }
+#library[open] { display: flex; flex-direction: column; }
+.library-heading { display: flex; justify-content: space-between; align-items: flex-start; padding: 25px 28px 18px; }
+.library-heading .settings-eyebrow { padding: 0; letter-spacing: .5px; }
+.library-heading h2 { font-size: 21px; margin: 8px 0 0; letter-spacing: -.5px; }
+.library-tabs { display: flex; padding: 0 28px; gap: 24px; border-bottom: 1px solid var(--line); }
+.library-tabs button { padding: 10px 0 13px; border-radius: 0; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent; }
+.library-tabs button[aria-pressed=true] { border-bottom-color: var(--text); color: var(--text); }
+.agents-view { display: grid; grid-template-columns: 275px 1fr; overflow: hidden; min-height: 0; flex: 1; }
+#agent-cards { padding: 16px 12px; background: var(--subtle); border-right: 1px solid var(--line); overflow: auto; }
+.agent-card { width: 100%; display: flex; align-items: flex-start; text-align: left; white-space: normal; padding: 15px 12px; gap: 12px; border: 1px solid transparent; margin-bottom: 6px; }
+.agent-card svg { margin-top: 3px; color: var(--muted); }
+.agent-card strong { font-size: 13px; font-weight: 550; }
+.agent-card small { display: block; font-size: 11px; line-height: 1.75; color: var(--muted); margin-top: 5px; }
+.agent-card[aria-pressed=true] { background: var(--surface); border-color: var(--line); box-shadow: 0 2px 5px #00000004; }
+.agent-card[aria-pressed=true] svg { color: var(--blue); }
+#agent-detail { padding: 26px 30px; overflow: auto; }
+.detail-eyebrow { color: var(--blue); font-size: 10px; }
+#agent-detail h3 { font-size: 20px; font-weight: 600; margin: 7px 0 10px; }
+#agent-detail p { font-size: 12px; }
+#agent-detail h4 { font-size: 11px; font-weight: 500; color: var(--muted); margin: 23px 0 7px; }
+.agent-steps { list-style: none; counter-reset: step; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 15px; margin: 24px 0; }
+.agent-steps li { display: flex; gap: 8px; align-items: center; font-size: 11px; counter-increment: step; }
+.agent-steps li::before { content: counter(step); display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; width: 20px; height: 20px; flex-shrink: 0; font-size: 10px; color: var(--muted); }
+#agent-detail .field-hint { font-size: 10px; margin-top: 12px; }
+.prompt-details { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 17px; font-size: 11px; }
+.prompt-details pre { font: 11px/1.85 -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--subtle); padding: 15px; border-radius: 7px; }
+.prompt-details .text-button { display: block; margin: 10px 0 0 auto; }
+#plugins-view { padding: 20px 28px; flex: 1; overflow: auto; }
+.library-intro { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.plugin-row { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.plugin-row:last-child { border-bottom: 0; }
+.plugin-row-heading { display: flex; gap: 10px; align-items: center; }
+.plugin-row-heading strong { font-size: 13px; font-weight: 550; }
+.plugin-version { font-size: 10px; color: var(--muted); }
+.plugin-row-heading > span:last-child { margin-left: auto; font-size: 10px; }
+.plugin-loaded { color: var(--success); }
+.plugin-row p { font-size: 11px; color: var(--muted); margin: 6px 0 10px; }
+.tool-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tool-chips code { background: var(--subtle); color: var(--muted); border-radius: 4px; padding: 3px 6px; font: 10px/1.4 ui-monospace, Menlo, monospace; }
+.plugin-source { font-size: 10px; color: var(--muted); margin-top: 10px; }
+.plugin-source code { display: block; padding-top: 6px; overflow-wrap: anywhere; }
+.library-footer { flex-shrink: 0; display: flex; justify-content: space-between; padding: 14px 28px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+@media (max-width: 1000px) { #agent-detail { padding: 22px; } .agents-view { grid-template-columns: 235px 1fr; } }

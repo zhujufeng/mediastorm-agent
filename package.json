@@ -1,6 +1,6 @@
 {
   "name": "mediastorm-agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "MediaStorm 公司 AI 开发助手：让代码可交付、可理解、可维护。",
   "type": "module",

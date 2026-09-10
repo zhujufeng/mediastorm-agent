@@ -10,7 +10,7 @@ import { DesktopCredentials, validateSettings } from '../desktop/store.mjs';
 
 const root = process.argv[2] || fileURLToPath(new URL('../', import.meta.url));
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'storm-desktop-check-')));
-const requests = new Map(); let child, server, nextQuestion, records = {}, events = [];
+const requests = new Map(); let child, server, nextQuestion, records = {}, events = [], bodies = [];
 try {
   const portableEnv = { HOME:dir, PATH:'/usr/bin:/bin' };
   for (const binary of ['runtime/node/bin/node','runtime/python/bin/python3','runtime/bin/codegraph','node_modules/dugite/git/bin/git']) {
@@ -52,9 +52,17 @@ try {
   });
   await start();
   const catalog = await request('catalog'); assert.ok(catalog.providers.some(p=>p.id==='openai-codex')); assert.equal(catalog.config,null);
+  assert.equal(catalog.agents.length,4); assert.ok(catalog.agents.every(a => a.prompt.includes(a.name) && a.workflow));
+  assert.equal(catalog.plugins.length,5); assert.ok(catalog.plugins.every(p => !p.loaded));
   await request('open',{path:project});
+  const loadedCatalog = await request('catalog');
+  assert.ok(loadedCatalog.plugins.every(p => p.loaded));
+  assert.ok(loadedCatalog.plugins.find(p => p.name === 'CodeGraph').tools.includes('codegraph_explore'));
+  assert.ok(!loadedCatalog.plugins.find(p => p.name === 'Trellis').tools.includes('trellis_subagent'));
+  await assert.rejects(request('profile',{id:'unknown'}),/未知/);
+  assert.equal((await request('profile',{id:'bug-fix'})).profile,'bug-fix');
   let diagnostics = await request('diagnostics'); assert.equal(diagnostics.project,project);
-  for (const name of ['storm_task','storm_check','codegraph_explore']) assert.ok(diagnostics.tools.includes(name),name);
+  for (const name of ['storm_task','storm_check','codegraph_explore','storm_changes']) assert.ok(diagnostics.tools.includes(name),name);
   assert.ok(events.some(e=>e.type==='widget' && e.key==='mediastorm'));
   await assert.rejects(request('prompt',{text:'hello'}), /模型/);
   // Extension command runs locally, without an account or any model request.
@@ -65,14 +73,14 @@ try {
   await request('close');
   await new Promise(resolve => child.once('exit', resolve));
   await start();
-  const restored = await request('catalog'); assert.equal(restored.config.provider,'openai-codex'); assert.deepEqual(restored.recent,[other,project]);
+  const restored = await request('catalog'); assert.equal(restored.config.provider,'openai-codex'); assert.equal(restored.profile,'bug-fix'); assert.deepEqual(restored.recent,[other,project]);
   await request('open',{path:project});
   diagnostics = await request('diagnostics'); assert.equal(diagnostics.project,project);
   await assert.rejects(request('saveModel',{...valid,key:''}), /密钥/);
   assert.ok(!existsSync(join(dataDir,'auth.json')));
   server = http.createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
-    const body = JSON.parse(raw);
+    const body = JSON.parse(raw); bodies.push(body);
     assert.equal(req.headers.authorization, 'Bearer local-fixture');
     let delta = {role:'assistant',content:'LOCAL_OK'}, finish = 'stop';
     const start = body.messages.findLastIndex(m=>m.role==='user' && JSON.stringify(m.content).includes('desktop confirmation'));
@@ -97,8 +105,23 @@ try {
   });
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   await request('saveModel',{...valid,baseUrl:`http://127.0.0.1:${server.address().port}/v1`,key:'local-fixture'});
+  const proxy = (await request('catalog')).config;
+  await request('saveModel',{...proxy,model:'second-model'});
+  const accountModel = catalog.providers.find(p => p.id === 'openai-codex').models[0].id;
+  records['openai-codex'] = {type:'api_key',key:'fixture-only'};
+  await request('selectModel',{provider:'openai-codex',model:accountModel});
+  assert.equal((await request('catalog')).proxyModels.length,2);
+  await assert.rejects(request('selectModel',{provider:'openai-codex',model:'nonexistent'}),/没有这个模型/);
+  assert.equal((await request('catalog')).config.model,accountModel);
+  await request('close'); await new Promise(resolve => child.once('exit',resolve)); await start();
+  assert.equal((await request('catalog')).proxyModels.length,2,'Proxy models must survive switching to an account and restarting');
+  assert.equal((await request('selectModel',proxy)).config.model,'demo');
+  await assert.rejects(request('selectModel',{...proxy,baseUrl:'https://unrecognized.example/v1'}),/找不到/);
+  await request('open',{path:project}); await request('profile',{id:'bug-fix'});
   assert.match((await request('testModel')).message,/实际响应/);
+  assert.equal(bodies.at(-1).model,'demo');
   await request('prompt',{text:'desktop local regression'});
+  assert.ok(JSON.stringify(bodies.at(-1).messages).includes('角色：故障定位与修复助手'));
   assert.ok(events.filter(e => ['message','stream','message-end'].includes(e.type)).every(e => ['user','assistant','toolResult'].includes(e.message.role)), 'Hidden extension context must not enter the visible stream');
   assert.ok(events.some(e=>e.type==='stream' && e.message.text.includes('LOCAL_OK')));
   const persisted = (await request('diagnostics')).sessionFile;
@@ -126,7 +149,10 @@ try {
     const progress = JSON.parse(readFileSync(join(project,'.trellis/tasks',task,'progress.json'),'utf8'));
     assert.equal(progress.phase,consent?'implementing':'awaiting_approval');
   }
+  await request('profile',{id:'code-review'});
+  await request('prompt',{text:'Check the existing task role'});
+  assert.ok(JSON.stringify(bodies.at(-1).messages).includes('角色：通用开发助手'),'An existing task must retain its accepted role');
   assert.match((await request('changes')).text,/未跟踪文件/);
   await assert.rejects(request('saveModel',{...valid,baseUrl:'https://new.example.com/v1',key:''}),/密钥/);
-  console.log('PASS: desktop validation, serialized credentials, real SDK/plugins, missing auth, same-name project isolation, configuration, conversation recovery, model streaming, and approval/cancellation bridge. Local HTTP fixture only; no external model calls.');
+  console.log('PASS: desktop validation, serialized credentials, model switching/restart, role prompts, actual plugin catalog, real SDK/plugins, missing auth, same-name project isolation, configuration, conversation recovery, model streaming, and approval/cancellation bridge. Local HTTP fixture only; no external model calls.');
 } finally { server?.close(); child?.kill(); rmSync(dir,{recursive:true,force:true}); }

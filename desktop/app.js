@@ -60,6 +60,96 @@ function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
   svg.setAttribute('aria-hidden', 'true'); use.setAttribute('href', `#i-${name}`); svg.append(use); return svg;
 }
+function element(tag, text, className) {
+  const node = document.createElement(tag); if (text) node.textContent = text; if (className) node.className = className; return node;
+}
+function renderModelPicker() {
+  const query = $('model-search').value.trim().toLowerCase(), list = $('model-options'); list.replaceChildren();
+  const groups = (catalog?.providers ?? []).filter(p => p.connected).map(p => ({ name: p.name, models: p.models.map(m => ({ ...m, provider: p.id })) }));
+  if (catalog?.proxyModels.length) groups.unshift({ name: '中转站 · 已保存', models: catalog.proxyModels.map(m => ({ ...m, id: m.model, name: m.model })) });
+  for (const group of groups) {
+    const matches = group.models.filter(m => `${group.name} ${m.name} ${m.id}`.toLowerCase().includes(query));
+    if (!matches.length) continue;
+    list.append(element('p', group.name, 'model-group'));
+    for (const model of matches) {
+      const selected = catalog.config?.provider === model.provider && catalog.config?.model === model.id;
+      const button = element('button', '', 'model-choice idle-only'), label = element('span'); button.type = 'button';
+      label.append(element('strong', model.name), element('small', model.baseUrl ? new URL(model.baseUrl).host : model.id));
+      button.append(label, selected ? icon('check') : element('span')); button.setAttribute('aria-pressed', String(selected));
+      button.onclick = () => run(async () => {
+        updateCatalog(await call('selectModel', { provider: model.provider, model: model.id, baseUrl: model.baseUrl }));
+        $('model-picker').hidePopover(); $('prompt').focus();
+      }, message => { $('picker-feedback').textContent = message; });
+      list.append(button);
+    }
+  }
+  if (!list.children.length) list.append(element('p', query ? '没有匹配的模型。可在下方添加中转站模型。' : '先连接一个订阅账户或中转站，模型就会出现在这里。', 'picker-empty'));
+  setBusy(busy);
+}
+$('composer-model').onclick = () => {
+  if (busy || localBusy) return;
+  if ($('model-picker').matches(':popover-open')) { $('model-picker').hidePopover(); return; }
+  $('model-search').value = ''; $('picker-feedback').textContent = '选择后用于下一条消息，模型权限以实际请求为准。';
+  renderModelPicker(); $('model-picker').showPopover(); $('model-search').focus();
+};
+$('model-search').oninput = renderModelPicker;
+$('model-picker').onkeydown = event => {
+  const buttons = [...$('model-options').querySelectorAll('button:not(:disabled)')];
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault(); const index = buttons.indexOf(document.activeElement), direction = event.key === 'ArrowDown' ? 1 : -1;
+    buttons[(index + direction + buttons.length) % buttons.length]?.focus();
+  } else if (event.key === 'Enter' && document.activeElement === $('model-search')) { event.preventDefault(); buttons[0]?.click(); }
+};
+$('picker-settings').onclick = settingsOpen;
+let libraryTab = 'agents', detailAgent;
+function renderLibrary() {
+  if (!catalog) return;
+  $('agents-tab').setAttribute('aria-pressed', libraryTab === 'agents'); $('plugins-tab').setAttribute('aria-pressed', libraryTab === 'plugins');
+  $('agents-view').hidden = libraryTab !== 'agents'; $('plugins-view').hidden = libraryTab !== 'plugins';
+  $('agent-cards').replaceChildren();
+  const selected = catalog.agents.find(a => a.id === detailAgent) || catalog.agents.find(a => a.id === catalog.profile);
+  for (const agent of catalog.agents) {
+    const button = element('button', '', 'agent-card'), label = element('span');
+    label.append(element('strong', agent.shortName), element('small', agent.description)); button.append(icon(agent.icon), label);
+    button.setAttribute('aria-pressed', agent.id === selected.id); button.onclick = () => { detailAgent = agent.id; renderLibrary(); };
+    $('agent-cards').append(button);
+  }
+  const detail = $('agent-detail'); detail.replaceChildren(element('span', '内置 Agent', 'detail-eyebrow'), element('h3', selected.name), element('p', selected.description, 'muted'));
+  const steps = element('ol', '', 'agent-steps'); selected.steps.forEach(step => steps.append(element('li', step))); detail.append(steps);
+  detail.append(element('h4', '交付给你'), element('p', selected.deliverables));
+  const use = element('button', selected.id === catalog.profile ? '已设为新任务助手' : '使用这个助手', 'primary idle-only');
+  use.onclick = () => run(async () => { updateCatalog(await call('profile', { id: selected.id })); $('library').close(); $('prompt').focus(); });
+  detail.append(use, element('p', '选择用于新任务；继续已有任务时，沿用该任务确认过的助手与范围。', 'field-hint'));
+  for (const [title, text] of [['查看角色提示词', selected.prompt], ['查看工作流全文', selected.workflow]]) {
+    const section = element('details', '', 'prompt-details'), copy = element('button', '复制', 'text-button');
+    copy.onclick = async () => { try { await navigator.clipboard.writeText(text); copy.textContent = '已复制'; } catch { copy.textContent = '请选中文字复制'; } };
+    section.append(element('summary', title), copy, element('pre', text)); detail.append(section);
+  }
+  $('plugin-list').replaceChildren();
+  for (const plugin of catalog.plugins) {
+    const row = element('section', '', 'plugin-row'), heading = element('div', '', 'plugin-row-heading');
+    heading.append(element('strong', plugin.name), element('span', plugin.version, 'plugin-version'), element('span', plugin.loaded ? '已加载' : '打开项目后加载', plugin.loaded ? 'plugin-loaded' : 'muted'));
+    row.append(heading, element('p', plugin.description));
+    if (plugin.loaded) {
+      const tools = element('div', '', 'tool-chips');
+      if (plugin.tools.length) plugin.tools.forEach(tool => tools.append(element('code', tool)));
+      else tools.append(element('span', '通过上下文或事件生效，没有当前可调用的工具。', 'field-hint'));
+      row.append(tools);
+    }
+    const source = element('details', '', 'plugin-source'); source.append(element('summary', '开发入口'), element('code', plugin.path)); row.append(source);
+    $('plugin-list').append(row);
+  }
+  $('index-status').textContent = !catalog.project ? '打开项目后，可以查看插件与代码索引状态。' : catalog.indexed ? '当前项目存在 CodeGraph 索引；索引健康与覆盖范围可在对话中让助手检查。' : '当前项目尚无 CodeGraph 索引。可以告诉助手“为这个项目建立代码索引”。';
+  setBusy(busy);
+}
+async function libraryOpen(tab) {
+  libraryTab = tab; detailAgent = catalog?.profile;
+  try { updateCatalog(await call('catalog')); renderLibrary(); if (!$('library').open) $('library').showModal(); } catch (error) { notice(error.message); }
+}
+$('library-open').onclick = () => libraryOpen('agents'); $('composer-plugins').onclick = () => libraryOpen('plugins');
+$('library-close').onclick = () => $('library').close();
+$('agents-tab').onclick = () => { libraryTab = 'agents'; renderLibrary(); }; $('plugins-tab').onclick = () => { libraryTab = 'plugins'; renderLibrary(); };
+
 function updateWelcome() {
   const ready = connected(), project = catalog?.project;
   w('welcome-title').textContent = ready && project ? '今天想推进什么？' : '把想法交给助手，把决定留给你。';
@@ -74,10 +164,13 @@ function updateWelcome() {
 }
 function updateCatalog(value) {
   if (!value) return;
-  const first = !catalog, currentAgent = $('agent').value, previousProvider = $('provider').value, previousModel = $('account-model').value;
+  const first = !catalog, previousProvider = $('provider').value, previousModel = $('account-model').value;
   catalog = value;
-  $('agent').replaceChildren(...value.agents.map(a => option(a.id, a.id === 'project-takeover' ? '项目接手与优化' : '需求开发')));
-  if (currentAgent) $('agent').value = currentAgent;
+  $('agent').replaceChildren(...value.agents.map(a => option(a.id, a.shortName)));
+  $('agent').value = value.profile;
+  $('agent-count').textContent = value.agents.length;
+  $('composer-plugins').textContent = `${value.plugins.filter(p => p.loaded).length}/${value.plugins.length} 插件已加载`;
+  if ($('library').open) renderLibrary();
   $('agent').title = value.agents.find(a => a.id === $('agent').value)?.description ?? '';
   $('recent').replaceChildren();
   for (const path of value.recent) {
@@ -127,11 +220,14 @@ function resetAuth() {
 function settingsOpen() {
   if (busy || localBusy) return;
   const config = catalog?.config;
+  const proxy = config?.provider === 'storm-proxy' ? config : catalog?.proxyModels[0];
+  if ($('model-picker').matches(':popover-open')) $('model-picker').hidePopover();
   resetAuth();
-  if (config?.provider === 'storm-proxy') {
-    $('base-url').value = config.baseUrl; $('api').value = config.api; $('proxy-model').value = config.model;
-    $('context-window').value = config.contextWindow; $('max-tokens').value = config.maxTokens; $('reasoning').checked = config.reasoning;
-  } else if (config) { $('provider').value = config.provider; updateAccountModels(config.model); }
+  if (proxy) {
+    $('base-url').value = proxy.baseUrl; $('api').value = proxy.api; $('proxy-model').value = proxy.model;
+    $('context-window').value = proxy.contextWindow; $('max-tokens').value = proxy.maxTokens; $('reasoning').checked = proxy.reasoning;
+  }
+  if (config && config.provider !== 'storm-proxy') { $('provider').value = config.provider; updateAccountModels(config.model); }
   $('key').value = ''; $('key').placeholder = catalog?.hasProxyKey ? '已保存；留空保留同地址的密钥' : '粘贴 API 密钥';
   mode(config?.provider === 'storm-proxy' ? 'proxy' : 'account'); $('settings').showModal();
 }
@@ -139,7 +235,7 @@ async function settingsClose() {
   if (loggingIn || testing) await call('stop').catch(error => notice(error.message));
   $('key').value = ''; resetAuth(); $('settings').close();
 }
-$('settings-open').onclick = settingsOpen; $('composer-model').onclick = settingsOpen; w('welcome-setup').onclick = settingsOpen;
+$('settings-open').onclick = settingsOpen; w('welcome-setup').onclick = settingsOpen;
 $('settings-close').onclick = settingsClose;
 $('settings').addEventListener('cancel', e => { e.preventDefault(); settingsClose(); });
 $('account-tab').onclick = () => mode('account'); $('proxy-tab').onclick = () => mode('proxy');
@@ -175,7 +271,7 @@ const stop = () => call('stop').catch(error => notice(error.message));
 $('stop').onclick = stop; $('cancel-operation').onclick = stop; $('cancel-test').onclick = stop;
 function choose() { return run(async () => updateCatalog(await call('choose'))); }
 $('choose').onclick = choose; w('welcome-project').onclick = choose;
-$('agent').onchange = () => run(async () => { await call('profile', { id: $('agent').value }); $('agent').title = catalog.agents.find(a => a.id === $('agent').value).description; });
+$('agent').onchange = () => run(async () => updateCatalog(await call('profile', { id: $('agent').value })), message => { $('agent').value = catalog.profile; notice(message); });
 $('changes-open').onclick = () => run(async () => { $('changes-body').textContent = (await call('changes')).text; $('changes').showModal(); });
 $('changes-close').onclick = () => $('changes').close();
 function toggleProgress(open) { $('progress-panel').hidden = !open; $('progress-toggle').setAttribute('aria-expanded', String(open)); }

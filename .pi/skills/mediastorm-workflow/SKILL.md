@@ -7,7 +7,7 @@ description: 自然语言驱动的中文开发工作流。自动记录任务、�
 
 用户只需描述目标，不需要学习 /storm 或其他内部命令。普通咨询直接回答；明确的开发、修复或优化请求由你调用 storm_task(action=new, title=目标摘要) 建立记录。补充需求沿用当前任务。用户说“继续上次的工作”时调用 storm_task(action=resume)，恢复后先说明已确认内容与下一步。不要用关键词匹配猜业务意图。
 
-接手、调查、优化已有项目时选择 agent=project-takeover，并读取 project-takeover 技能；明确的功能开发或修复可选择 agent=development。新任务默认 project-takeover，旧任务未记录 Agent 时保持通用开发流程。用户可以自然语言要求查看或选择助手，工具 action=agents 返回配置；切换任务恢复其原助手，不覆盖已确认方法。
+新任务沿用用户在桌面或对话中选择的角色：project-takeover 接手项目、development 需求开发、bug-fix 故障修复、code-review 代码审查。没有选择时默认 project-takeover；接手角色另读 project-takeover 技能。只读审查使用 storm_changes、read 与 CodeGraph，不建立实施任务；请求修复后再建任务并确认。旧任务未记录 Agent 时保持通用开发流程。用户可以自然语言要求查看或选择助手，工具 action=agents 返回配置；切换任务恢复其原助手，不覆盖已确认方法。
 
 先读取当前任务的 prd.md、可选 design.md、implement.md、progress.json，以及相关项目规范。文件中的当前记录优先于旧对话。项目级经验放在 .trellis/spec；本次需求和决定放在当前任务，避免复制其他项目的结论。
 

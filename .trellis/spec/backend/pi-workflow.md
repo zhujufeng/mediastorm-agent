@@ -16,7 +16,7 @@
 
 ## 3. 数据与环境
 
-`progress.json` 的 version=1，phase 为 clarify/awaiting_approval/implementing/checking/awaiting_acceptance/completed；summary、next、checkCommand 为字符串。agent=project-takeover/development；新建默认 project-takeover，无 agent 的旧任务视作 development。配置和技能路径由 agents.mjs 统一定义。
+`progress.json` 的 version=1，phase 为 clarify/awaiting_approval/implementing/checking/awaiting_acceptance/completed；summary、next、checkCommand 为字符串。agent 为 agents.mjs 中的稳定 ID（project-takeover/development/bug-fix/code-review）；新建默认 project-takeover，无 agent 的旧任务视作 development。配置和技能路径由 agents.mjs 统一定义。
 
 approval 是 prd.md、design.md 与 checkCommand 的 SHA-256；新任务额外包含 agent 和 assessment。没有这两个字段的旧任务保持原指纹。implement.md 是可持续更新的执行清单，不纳入批准指纹。
 
@@ -88,3 +88,10 @@ before_agent_start 为这五条记录提供交付摘要、运行/检查说明（
 错误：工具返回成功即交付完成。正确：保存实际检查结果，等待用户对产物验收。
 
 错误：用户说“优化项目”就直接重构全仓，或要求用户先学工作流命令。正确：只读调查并提出有证据的候选问题，逐题确认具体范围、保持不变的行为和验收方式。
+
+
+## 角色与自研只读插件
+
+角色职责、步骤、交付和提示词由 agents.mjs 统一生成，before_agent_start 实际注入；桌面通过 worker 的 STORM_AGENT_PROFILE 提供新任务偏好，已有任务的 agent 始终优先。角色内容不授予权限，不更改计划摘要和验收指纹。只读代码审查不要求建立实施任务，真正修复才走方案确认。
+
+project-changes.mjs 的 storm_changes 与桌面差异视图复用相同实现，只使用当前 cwd 和固定 Git 参数，禁用外部 diff/textconv，限制时间与输出；加入 readableTools 是对此具体工具的人工审查结果。新增工具不能自动继承只读豁免。五个扩展由 .pi/settings.json 显式加载，当前四个角色共用它们。

@@ -2,11 +2,11 @@
 
 同事只需要第一次下载安装。正式安装版左下角“软件更新”及应用菜单“检查更新…”用于获取新版；下载完成后可选择稍后，或在空闲时重启安装。原生更新也会在下次正常重启时应用已下载版本。登录、最近项目、对话保留在原应用数据目录，项目任务与经验仍在项目中。
 
-当前 0.3.0 已接入更新功能，尚未完成 Developer ID 签名、公证和两个真实签名版本之间的升级验证。旧 0.2.0 没有更新功能，需要手动安装一次包含更新功能的正式版。本机试用包可以生成 DMG，但不能作为稳定更新源。
+当前 0.4.0 已接入更新功能，尚未完成 Developer ID 签名、公证和两个真实签名版本之间的升级验证。旧 0.2.0 没有更新功能，需要手动安装一次包含更新功能的正式版。本机试用包可以生成 DMG，但不能作为稳定更新源。
 
 ## 更新来源
 
-- 安装与版本记录：[GitHub Releases](https://github.com/zhujufeng/mediastorm-agent/releases)。首次正式 Release 发布后，这里才有给同事的下载包。
+- 安装与版本记录：[GitHub Releases](https://github.com/zhujufeng/mediastorm-agent/releases)。已公开 Mac 预览 DMG 与 SHA-256 校验文件；预览标记为 prerelease，不进入稳定更新源。
 - 更新检查：`https://update.electronjs.org/zhujufeng/mediastorm-agent/darwin-arm64/<当前版本>`。
 - 使用 Electron 内置 autoUpdater / Squirrel.Mac；更新包为带 `-mac-arm64` 的 ZIP。DMG 供首次安装，ZIP 供更新器使用。
 - 同事无需 GitHub 账号、Node、npm 或独立安装 Pi；网络需要能访问 GitHub Releases 和 Electron 更新服务。
@@ -18,7 +18,20 @@ DMG 是安装文件容器，可以不使用 Apple Developer 账号生成。未�
 
 首次正式发布需要可用的 Developer ID Application 身份和 Apple 公证凭据。由维护者在本机钥匙串配置；证书私钥、密码、Apple API key 都不提交到 Git，也不放进同事的应用。当前发布脚本使用 `notarytool` 已保存的 keychain profile，而不是从源码读取账户密码。
 
-## 维护者的发布步骤
+## 无证书时发布公开试用版
+
+无需先购买 Apple Developer，也可以提供 DMG 下载。提交并推送版本对应源码后执行：
+
+```sh
+npm run desktop:package
+npm run desktop:publish -- --preview /path/to/release-notes.md
+```
+
+`--preview` 检查提交与构建一致，执行 SDK 回归及独立包验证，生成 SHA-256，先上传完整 DMG 到草稿，再公开为 prerelease。它自动注明 ad-hoc 签名、未公证和手动更新限制，不上传自动更新 ZIP。首次运行可能需要按系统“隐私与安全性”提示允许打开，见 [Apple 说明](https://support.apple.com/zh-cn/102445)。不要求同事关闭系统安全保护。
+
+同事下次从软件里的“下载与版本记录”取得新版，退出应用后覆盖 Applications 中的同名应用。登录和已保存对话保留在应用数据目录。若上传中断，先检查 GitHub 是否留下草稿；不要覆盖已经公开的版本资产。
+
+## 维护者的正式签名发布步骤
 
 1. 在 `package.json` 更新版本为 `x.y.z`，同步 `package-lock.json` 的两个根版本。所有界面与构建产物读取这个版本，不再手改 HTML。保持应用名称、bundle ID 和签名身份连续。
 2. 编写本次版本说明，提交并推送源码；正式构建要求 Git 工作区干净，安装包记录对应提交。

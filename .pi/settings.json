@@ -1,10 +1,18 @@
 {
   "enableSkillCommands": true,
+  "stormPlugins": {
+    "./extensions/trellis/index.ts": { "name": "Trellis", "version": "0.6.6", "description": "读取项目规范、恢复任务上下文。桌面暂不开放其终端子 Agent 界面。" },
+    "../node_modules/@dietrichgebert/ponytail/pi-extension/index.js": { "name": "Ponytail", "package": "@dietrichgebert/ponytail", "description": "在模型上下文中约束不必要的代码和抽象，优先复用。" },
+    "../node_modules/@vndv/pi-codegraph/extensions/codegraph.ts": { "name": "CodeGraph", "package": "@vndv/pi-codegraph", "description": "检索符号、调用关系和改动影响。项目需要建立自己的索引。" },
+    "./extensions/mediastorm/index.mjs": { "name": "MediaStorm 工作流", "description": "管理需求澄清、方案确认、真实检查、交付验收与项目记忆。" },
+    "./extensions/project-changes.mjs": { "name": "项目改动", "description": "MediaStorm 自研插件：只读检查 Git 改动，让助手直接审查差异。也用于桌面的文件改动视图。" }
+  },
   "extensions": [
     "./extensions/trellis/index.ts",
     "../node_modules/@dietrichgebert/ponytail/pi-extension/index.js",
     "../node_modules/@vndv/pi-codegraph/extensions/codegraph.ts",
-    "./extensions/mediastorm/index.mjs"
+    "./extensions/mediastorm/index.mjs",
+    "./extensions/project-changes.mjs"
   ],
   "skills": [
     "./skills",

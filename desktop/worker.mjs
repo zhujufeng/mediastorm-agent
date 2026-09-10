@@ -1,21 +1,31 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { basename, join } from 'node:path';
-import { stripVTControlCharacters, promisify } from 'node:util';
-import { execFile } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { prepareProject, projectLaunch, readRecentProjects, rememberProject } from '../scripts/pi-project.mjs';
-import { agents } from '../.pi/extensions/mediastorm/agents.mjs';
+import { agents, agentInstructions } from '../.pi/extensions/mediastorm/agents.mjs';
+import { projectChanges } from '../.pi/extensions/project-changes.mjs';
 import { DesktopCredentials, readJSON, textInput, validateSettings, writeJSON } from './store.mjs';
 
 // Python's standard-library bytecode must not modify the signed application bundle.
 process.env.PYTHONDONTWRITEBYTECODE = '1';
 const dataDir = process.env.STORM_USER_DATA;
 const settingsFile = join(dataDir, 'model.json'), recentFile = join(dataDir, 'projects.json');
+const proxyFile = join(dataDir, 'proxy-models.json');
+const profileFile = join(dataDir, 'agent.json');
+const appRoot = fileURLToPath(new URL('../', import.meta.url));
+const pluginSettings = readJSON(join(appRoot, '.pi/settings.json'));
+const manifest = readJSON(join(appRoot, 'package.json'));
 const emit = (type, data = {}) => process.send?.({ type, ...data });
 const pending = new Map(), credentialRequests = new Set();
-let session, runtime, project, busy = false, loginAbort, profile = 'project-takeover';
+let session, runtime, project, busy = false, loginAbort, profile = readJSON(profileFile, { id: 'project-takeover' }).id;
+if (!Object.hasOwn(agents, profile)) throw new Error('保存的助手不存在，请检查 agent.json；原设置已保留。');
 let config = existsSync(settingsFile) ? validateSettings(readJSON(settingsFile)) : null;
+let proxyModels = readJSON(proxyFile, config?.provider === 'storm-proxy' ? [config] : []).map(validateSettings);
+let loadedExtensions = [];
+process.env.STORM_AGENT_PROFILE = profile;
 const clean = text => stripVTControlCharacters(String(text ?? ''));
 const sessionDir = root => join(dataDir, 'sessions', createHash('sha256').update(realpathSync(root)).digest('hex'));
 const projectSessions = () => project ? SessionManager.list(project, sessionDir(project)) : [];
@@ -62,8 +72,19 @@ async function catalog() {
   const accounts = await runtime.listCredentials();
   const providers = runtime.getProviders().filter(p => p.auth?.oauth).map(p => ({ id: p.id, name: p.auth.oauth.name,
     connected: accounts.some(a => a.providerId === p.id), models: runtime.getModels(p.id).map(m => ({ id: m.id, name: m.name })) }));
-  return { providers, config, hasProxyKey: accounts.some(a => a.providerId === 'storm-proxy'),
-    agents: Object.entries(agents).map(([id, a]) => ({ id, name: a.name, description: a.description })),
+  const proxyCredential = await credentials.read('storm-proxy');
+  const tools = session?.getActiveToolNames() ?? [];
+  const plugins = pluginSettings.extensions.map(path => {
+    const info = pluginSettings.stormPlugins?.[path] ?? { name: basename(path), description: '自定义 Pi 扩展' };
+    const loaded = loadedExtensions.find(e => e.resolvedPath === resolve(appRoot, '.pi', path));
+    return { name: info.name, description: info.description, version: info.package ? manifest.dependencies[info.package] : info.version || manifest.version,
+      path, loaded: Boolean(project && loaded), tools: loaded ? [...loaded.tools.keys()].filter(name => tools.includes(name)) : [],
+      commands: loaded ? [...loaded.commands.keys()] : [] };
+  });
+  return { providers, config, hasProxyKey: Boolean(proxyCredential), profile, plugins,
+    indexed: Boolean(project && existsSync(join(project, '.codegraph'))),
+    proxyModels: proxyModels.filter(m => m.baseUrl === proxyCredential?.env?.STORM_PROXY_BASE_URL),
+    agents: Object.entries(agents).map(([id, a]) => ({ ...a, id, prompt: agentInstructions(id), workflow: readFileSync(a.skill, 'utf8') })),
     recent: readRecentProjects(recentFile).filter(p => existsSync(join(p, '.git'))), project, busy,
     sessions: (await projectSessions()).slice(0, 40).map(s => ({ id: s.id, title: clean(s.name || s.firstMessage || '新对话').slice(0, 100), modified: s.modified, active: s.path === session?.sessionFile })) };
 }
@@ -84,7 +105,7 @@ async function openProject(path, fresh = false, savedSession) {
   assertIdle();
   const root = prepareProject(textInput(path, '项目目录', 4000));
   if (session) { await session.abort(); session.dispose(); session = undefined; }
-  project = undefined;
+  project = undefined; loadedExtensions = [];
   process.chdir(root);
   const dir = sessionDir(root);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -95,10 +116,6 @@ async function openProject(path, fresh = false, savedSession) {
     noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
     additionalExtensionPaths: paths('-e'), additionalSkillPaths: paths('--skill'),
     appendSystemPrompt: paths('--append-system-prompt'),
-    extensionFactories: [pi => pi.on('before_agent_start', () => ({
-      // Existing active task owns its profile; this preference only guides new tasks.
-      message: { customType: 'desktop-profile', content: `桌面选择的助手是 ${profile}（${agents[profile].name}）。新建任务时使用此 agent；已恢复任务仍遵守该任务保存的 agent。`, display: false },
-    }))],
   });
   await loader.reload();
   const errors = loader.getExtensions().errors;
@@ -112,6 +129,7 @@ async function openProject(path, fresh = false, savedSession) {
   const startupErrors = [];
   await session.bindExtensions({ mode: 'interactive', uiContext: ui, onError: e => { startupErrors.push(e); emit('notice', { message: clean(e.message ?? e.error), level: 'error' }); } });
   if (startupErrors.length) { session.dispose(); session = undefined; throw new Error('插件启动失败，请查看上方错误。'); }
+  loadedExtensions = loader.getExtensions().extensions;
   session.subscribe(event => {
     if (event.type === 'message_update' && visibleMessage(event.message)) emit('stream', { message: displayMessage(event.message) });
     if (event.type === 'message_start' && visibleMessage(event.message)) emit('message', { message: displayMessage(event.message) });
@@ -137,7 +155,17 @@ const handlers = {
     if (!saved || saved.cwd !== project || realpathSync(saved.path) !== join(sessionDir(project), basename(saved.path))) throw new Error('该对话不属于当前项目或已经移走。');
     return openProject(project, false, saved.path);
   },
-  profile: data => { assertIdle(); if (!Object.hasOwn(agents, data.id)) throw new Error('未知助手。'); profile = data.id; return true; },
+  profile: data => { assertIdle(); if (!Object.hasOwn(agents, data.id)) throw new Error('未知助手。'); writeJSON(profileFile, { id: data.id }); profile = data.id; process.env.STORM_AGENT_PROFILE = profile; return catalog(); },
+  async selectModel(data) {
+    assertIdle();
+    if (data.provider === 'storm-proxy') {
+      const saved = proxyModels.find(m => m.model === data.model && m.baseUrl === data.baseUrl);
+      if (!saved) throw new Error('找不到这个中转站模型，请在模型与连接中配置。');
+      return handlers.saveModel(saved);
+    }
+    if (!(await credentials.read(data.provider))) throw new Error('请先登录此服务。');
+    return handlers.saveModel({ provider: data.provider, model: data.model });
+  },
   async saveModel(data) {
     assertIdle();
     const next = validateSettings(data);
@@ -150,7 +178,13 @@ const handlers = {
     registerProxy(next);
     const model = runtime.getModel(next.provider, next.model);
     if (!model) { registerProxy(config); throw new Error('该服务没有这个模型，请重新选择。'); }
+    if (proxyModels.length && !existsSync(proxyFile)) writeJSON(proxyFile, proxyModels);
     writeJSON(settingsFile, next); config = next;
+    if (next.provider === 'storm-proxy') {
+      // ponytail: retain up to 20 models for the one configured endpoint; multiple endpoint accounts need separate credential IDs.
+      proxyModels = [next, ...proxyModels.filter(m => m.baseUrl === next.baseUrl && m.model !== next.model)].slice(0, 20);
+      writeJSON(proxyFile, proxyModels);
+    }
     await runtime.refresh({ providers: [next.provider] });
     return catalog();
   },
@@ -202,11 +236,7 @@ const handlers = {
   async close() { await handlers.stop(); session?.dispose(); process.exitCode = 0; setTimeout(() => process.exit(), 50); },
   async changes() {
     if (!project) throw new Error('请先打开项目。');
-    const git = async args => clean((await promisify(execFile)('git', args, { cwd: project, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, timeout: 10000, maxBuffer: 2 * 1024 * 1024 })).stdout);
-    const status = await git(['status', '--short']);
-    const unstaged = await git(['diff', '--no-ext-diff', '--no-textconv', '--']);
-    const staged = await git(['diff', '--cached', '--no-ext-diff', '--no-textconv', '--']);
-    return { text: `当前工作目录的改动（包括开始任务前已有的改动）\n未跟踪文件只列名称；此视图不代表检查已通过。\n\n${status || '没有文件改动。'}\n未暂存差异\n${unstaged || '无'}\n已暂存差异\n${staged || '无'}` };
+    return projectChanges(project);
   },
   diagnostics: () => ({ node: process.version, project, tools: session?.getActiveToolNames() ?? [], sessionFile: session?.sessionFile }),
 };

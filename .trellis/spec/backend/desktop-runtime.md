@@ -55,8 +55,17 @@ package.json 为唯一应用版本来源，锁文件根版本同步；HTML、pac
 
 原生事件拥有检查/下载/就绪/错误状态；重复检查不发第二次请求，错误可重试。安装必须在空闲、无工作流确认时，由原生确认框明确选择；主进程持有 operation 直到安全关闭 worker 并调用 quitAndInstall。窗口 close 隐藏逻辑通过 quitting 放行更新退出，避免下载后无法替换。未发送的编辑内容在 renderer 阻止重启；任务/对话仍由原 worker 持久化。
 
-正式签名发生在 packager 链接恢复之后，复用其锁定的 @electron/osx-sign，启用 hardened runtime 与 JIT entitlement。应用公证通过并 staple 后再制作用于更新的 ZIP；DMG 另签名、公证并 staple。更新 ZIP 解压后也要验证签名与公证，不能只核对旁边的 .app。发布脚本拒绝 local 包、版本/源码不符、未推送源码或检查失败的产物，只创建 Release 草稿；另一台 Mac 及两个实际签名版本之间的升级须独立验证。
+正式签名发生在 packager 链接恢复之后，复用其锁定的 @electron/osx-sign，启用 hardened runtime 与 JIT entitlement。应用公证通过并 staple 后再制作用于更新的 ZIP；DMG 另签名、公证并 staple。更新 ZIP 解压后也要验证签名与公证，不能只核对旁边的 .app。正式发布路径拒绝 local 包、版本/源码不符、未推送源码或检查失败的产物，只创建 Release 草稿；另一台 Mac 及两个实际签名版本之间的升级须独立验证。
 
 签名/公证仅在维护者本机钥匙串配置；不复制到应用，不提交 Git。没有 Developer ID 时只能声明本机试用包与模拟更新状态回归通过，不宣称正式分发或真实升级成功。
 
 锁定的 @electron/osx-sign 2.7.0 导出 `sign`（返回 Promise），不是旧版 `signAsync`；check:updates 在源码模式验证实际导出。
+
+
+## 模型选择与能力库（0.4.0）
+
+selectModel 只接受已登录订阅中的已知模型或已保存中转站模型，最终走 saveModel 的统一校验、凭据地址绑定和保存路径。renderer 不传任意已保存配置作为快捷切换授权。proxy-models.json 存储同一地址最多 20 个非秘密配置；切换订阅时保留，首次旧配置迁移在离开原中转站前保存。更换地址仍需密钥，旧地址列表移除。agent.json 只保存新任务默认角色 ID。
+
+catalog 的角色来自同一注册表，插件入口来自 .pi/settings.json.extensions，名称说明来自 stormPlugins；加载状态来自 SDK resolvedPath，工具来自注册表与当前 session.getActiveToolNames 的交集。关闭/切换项目清空加载快照，未知插件显示通用名称。索引存在不是健康或已调用的证明。
+
+--preview 发布仅接受 local 包，同样核对提交、版本、回归和独立安装包，生成 SHA-256；完整上传后公开为 prerelease，仅提供 DMG 和校验文件。正式稳定路径仍需签名公证。预览不会启用原地更新，不混入正式更新 ZIP。

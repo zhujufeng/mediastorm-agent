@@ -22,6 +22,7 @@
 <aside class="sidebar">
   <div class="brand"><span class="mark" aria-hidden="true">m<span>·</span></span><strong>MediaStorm</strong><span class="preview">预览</span></div>
   <button id="fresh" class="nav-button idle-only" disabled><svg><use href="#i-plus"/></svg>新建对话<kbd>⌘ N</kbd></button>
+  <button id="library-open" class="nav-button"><svg><use href="#i-spark"/></svg>Agent 与插件<span class="nav-count" id="agent-count"></span></button>
   <div class="section-heading"><span>项目</span><button id="choose" class="icon-button idle-only" title="打开本地 Git 项目" aria-label="打开项目"><svg><use href="#i-plus"/></svg></button></div>
   <nav id="recent" aria-label="最近项目"></nav>
   <div class="section-heading history-heading"><span>当前项目的对话</span></div>
@@ -45,11 +46,24 @@
           <div class="suggestions"><span class="suggestions-label">可以这样开始</span><button data-prompt="帮我优化当前项目。先了解现状，找出最值得优先处理的问题。"><svg><use href="#i-code"/></svg>帮我优化当前项目<span>↗</span></button><button data-prompt="回顾这个项目上次已验收的改动、实际检查结果和遗留问题。"><svg><use href="#i-chat"/></svg>继续上次的工作<span>↗</span></button><button data-prompt="我有一个开发需求，请先帮我梳理目标和验收标准，再和我确认方案。"><svg><use href="#i-spark"/></svg>一起梳理一个新需求<span>↗</span></button></div>
         </div>
       </div>
-      <div class="composer-wrap"><div id="activity" class="activity" role="status">准备就绪</div><form id="composer"><label class="sr-only" for="prompt">发给助手的消息</label><textarea id="prompt" rows="2" placeholder="描述你想做的事，或先聊聊你的想法…" maxlength="50000"></textarea><div class="composer-actions"><div class="composer-options"><label class="sr-only" for="agent">工作助手</label><select id="agent" class="idle-only" aria-describedby="agent-description"></select><button type="button" id="composer-model" class="quiet idle-only"><span id="model-label">连接模型</span><span aria-hidden="true">⌄</span></button></div><button type="button" id="stop" class="stop-button" hidden aria-label="停止当前操作"><span></span></button><button type="submit" id="send" class="send-button idle-only" aria-label="发送消息"><svg><use href="#i-arrow"/></svg></button></div></form><div class="composer-note"><span id="agent-description">关键节点由你确认，经验保留在项目。</span><span>↵ 发送 · ⇧ ↵ 换行</span></div></div>
+      <div class="composer-wrap"><div id="activity" class="activity" role="status">准备就绪</div><form id="composer"><label class="sr-only" for="prompt">发给助手的消息</label><textarea id="prompt" rows="2" placeholder="描述你想做的事，或先聊聊你的想法…" maxlength="50000"></textarea><div class="composer-actions"><div class="composer-options"><label class="sr-only" for="agent">工作助手</label><select id="agent" class="idle-only" aria-describedby="agent-description"></select><button type="button" id="composer-model" class="quiet idle-only" aria-haspopup="dialog" aria-controls="model-picker"><span id="model-label">连接模型</span><span aria-hidden="true">⌄</span></button></div><button type="button" id="stop" class="stop-button" hidden aria-label="停止当前操作"><span></span></button><button type="submit" id="send" class="send-button idle-only" aria-label="发送消息"><svg><use href="#i-arrow"/></svg></button></div></form><div class="composer-note"><span id="agent-description">关键节点由你确认，经验保留在项目。</span><button type="button" id="composer-plugins" class="text-button">查看插件</button><span>↵ 发送 · ⇧ ↵ 换行</span></div></div>
     </section>
     <aside id="progress-panel" class="progress-panel" aria-label="任务进度" hidden><div class="section-heading"><span>本轮任务</span><button id="progress-close" class="icon-button" aria-label="收起任务进度"><svg><use href="#i-close"/></svg></button></div><h2 id="task-title">从一个具体目标开始</h2><ol id="phases"><li>理解与澄清</li><li>确认方案</li><li>实现与检查</li><li>交付与验收</li></ol><div class="progress-copy"><span class="section-caption">当前工作</span><p id="progress-summary">助手会先了解项目，再与你确认本轮目标。</p><span class="section-caption">下一步</span><p id="progress-next">描述你想改善的地方。</p></div><details class="plugin-details"><summary>工作流状态</summary><pre id="plugin-status"></pre></details><p class="small muted">关键决定由你确认，任务和已验收经验保存在当前项目。</p></aside>
   </div>
 </main>
+<div id="model-picker" popover role="dialog" aria-label="切换模型">
+  <div class="picker-search"><svg><use href="#i-spark"/></svg><input id="model-search" class="idle-only" type="search" aria-label="搜索模型" placeholder="搜索模型或服务…" autocomplete="off"></div>
+  <div id="model-options" class="model-options"></div>
+  <p id="picker-feedback" role="status" class="field-hint">选择后用于下一条消息，模型权限以实际请求为准。</p>
+  <button id="picker-settings" class="picker-manage idle-only"><svg><use href="#i-plus"/></svg>管理连接 / 添加中转站模型<span>⌘ ,</span></button>
+</div>
+<dialog id="library" aria-labelledby="library-title">
+  <div class="library-heading"><div><span class="settings-eyebrow">MediaStorm · 能力库</span><h2 id="library-title">为具体的工作，选择合适的助手。</h2></div><button id="library-close" class="icon-button" aria-label="关闭能力库"><svg><use href="#i-close"/></svg></button></div>
+  <div class="library-tabs" role="group" aria-label="能力目录"><button id="agents-tab" aria-pressed="true">工作助手</button><button id="plugins-tab" aria-pressed="false">插件与工具</button></div>
+  <div id="agents-view" class="agents-view"><nav id="agent-cards" aria-label="内置助手"></nav><section id="agent-detail" aria-label="助手详情"></section></div>
+  <div id="plugins-view" hidden><p class="library-intro">所有内置助手共用以下基础插件。这里显示当前项目的实际加载结果；加载不等于本轮已调用。</p><div id="plugin-list"></div><p class="field-hint" id="index-status"></p></div>
+  <div class="library-footer"><span>项目规范 · 关键节点确认 · 对话整理 · 已验收项目记忆</span><span>公共能力</span></div>
+</dialog>
 <dialog id="settings" aria-labelledby="settings-title">
   <aside class="settings-nav"><span class="settings-eyebrow">偏好设置</span><h2 id="settings-title">模型与连接</h2><div class="tabs" role="group" aria-label="接入方式"><button type="button" id="account-tab" class="idle-only" aria-pressed="true"><svg><use href="#i-link"/></svg><span>订阅账户<small>浏览器授权登录</small></span></button><button type="button" id="proxy-tab" class="idle-only" aria-pressed="false"><svg><use href="#i-code"/></svg><span>中转站 / API<small>使用自己的服务</small></span></button></div><p>登录信息仅保存在本机，<br>由 Mac 钥匙串保护。</p></aside>
   <form id="model-form" class="settings-content"><div class="dialog-heading"><div><h3 id="connection-title">连接你的订阅账户</h3><p id="connection-description">在浏览器登录，完成后回到这里。</p></div><button type="button" id="settings-close" class="icon-button" aria-label="关闭模型设置"><svg><use href="#i-close"/></svg></button></div>
