@@ -29,7 +29,7 @@ export function validateSettings(input) {
   if (!['openai-completions', 'openai-responses', 'anthropic-messages'].includes(input.api)) throw new Error('请选择支持的模型协议。');
   const contextWindow = Number(input.contextWindow ?? 128000), maxTokens = Number(input.maxTokens ?? 8192);
   if (!Number.isSafeInteger(contextWindow) || !Number.isSafeInteger(maxTokens) || maxTokens < 64 || contextWindow < maxTokens || contextWindow > 2000000) throw new Error('请检查上下文长度与最大输出：输出至少 64，且不超过上下文长度（上限 200 万）。');
-  return { provider, model, baseUrl: url.href.replace(/\/$/, ''), api: input.api, contextWindow, maxTokens, reasoning: input.reasoning === true };
+  return { provider, model, baseUrl: url.href.replace(/\/$/, ''), api: input.api, contextWindow, maxTokens, reasoning: input.reasoning === true, vision: input.vision === true };
 }
 
 // ponytail: one worker owns credentials; serialize all providers, split locks only if parallel accounts become necessary.

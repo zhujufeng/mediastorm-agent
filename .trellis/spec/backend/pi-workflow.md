@@ -6,6 +6,7 @@
 
 ## 2. 接口
 
+- 产品通过自有 trellis-product.mjs 装配上游扩展，不注册其 before_agent_start；不自动加载平台开发用 trellis-* 技能。MediaStorm 是唯一产品流程注入来源；项目业务/技术规范仍按来源读取。context 只按 role=custom / customType=trellis-runtime-context 排除旧自动注入，不改写会话文件、不删除用户引用或其他项目规则；压缩摘要不能据文本标签整段删除，当前流程明确优先于历史流程描述。上游生成的 index.ts 保持不变，check-pi 仍独立验证原入口。
 - 自然语言是主要入口；模型根据工作请求调用 `storm_task({action, title?, agent?, query?})`，action=new/resume/spec/status/approve/accept/agents/memory。普通咨询不建任务。agent 仅用于 new，query 用于 memory。
 - `/storm [new <标题>|resume|spec|status|approve|accept|agents|memory <主题>]`：备用入口，与工具复用同一执行逻辑。命令新建提供助手选择。
 - `storm_assessment({overview, runInstructions, findings, focus, preserve})`：澄清阶段保存调查，最多三个问题，每个问题带至少一个本项目文件依据；接手任务批准前必需。
@@ -96,6 +97,8 @@ before_agent_start 为这五条记录提供交付摘要、运行/检查说明（
 
 ## 角色与自研只读插件
 
-角色职责、步骤、交付和提示词由 agents.mjs 统一生成，before_agent_start 实际注入；桌面通过 worker 的 STORM_AGENT_PROFILE 提供新任务偏好，已有任务的 agent 始终优先。角色内容不授予权限，不更改计划摘要和验收指纹。只读代码审查不要求建立实施任务，真正修复才走方案确认。
+角色职责、步骤、交付和提示词由 agents.mjs 统一生成，before_agent_start 实际注入；桌面通过 worker 的 STORM_AGENT_PROFILE 提供新任务偏好，已有任务的 agent 始终优先。effectiveAgent统一解析未完成任务角色优先、旧任务缺agent用development、已完成任务回到默认角色。readOnly标识控制真实工具白名单及tool_call参数门禁，不更改计划摘要/验收指纹。白名单限read/grep/find/ls/storm_changes、8个精确CodeGraph查询、storm_task只读动作与明确new/resume转换、storm_lark精确离线形式；未知codegraph_*不自动豁免。新增工具默认不得进入审查白名单。
 
-project-changes.mjs 的 storm_changes 与桌面差异视图复用相同实现，只使用当前 cwd 和固定 Git 参数，禁用外部 diff/textconv，限制时间与输出；加入 readableTools 是对此具体工具的人工审查结果。新增工具不能自动继承只读豁免。五个扩展由 .pi/settings.json 显式加载，当前四个角色共用它们。
+syncTools使用公开getActiveTools/setActiveTools，保存宿主初始活动集合，保留随后显式禁用的工具；仅收窄，不用getAllTools重启用排除工具。启动/恢复、默认角色事件、任务转换和每轮同步。tool_call仍拒绝陈旧写工具与飞书业务参数，不能只靠模型看不到工具；/storm与工具共用runAction。只读模式不能创建code-review实施任务，新建/恢复其他实施角色先真实UI确认，取消不产生任务或权限提升；同意切换不代替后续方案批准。旧code-review任务保持只读，需另建实施任务。此机制不是宿主沙箱，不能隔离恶意扩展。
+
+project-changes.mjs 的 storm_changes 与桌面差异视图复用相同实现，只使用当前 cwd 和固定 Git 参数，禁用外部 diff/textconv，限制时间与输出；加入 readableTools 是对此具体工具的人工审查结果。新增工具不能自动继承只读豁免。六个扩展由 .pi/settings.json 显式加载，当前四个角色共用它们。storm_lark 是独立用户确认的 CLI 入口，不是 readableTools 豁免；与任务控制、修改和检查互斥，无任务时也可确认使用，不放行任意 bash。非离线调用可能导出文件，因此保守失效活动任务的检查/交付证据，取消也不恢复旧证据。配置/登录保留在原生终端，不复制用户凭据。

@@ -24,7 +24,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 - 产品：基于 Pi 的公司 Agent 平台，桌面为主要入口。当前 Mac arm64 预览使用 Electron 与原生 HTML/CSS/JS；Windows 和 Intel Mac 后续单独验证。
 - 先读 README.md、docs/development-plan.md、docs/pi-research.md。桌面契约在 .trellis/spec/backend/desktop-runtime.md，任务与记忆契约在 .trellis/spec/backend/pi-workflow.md。
-- 四个 Agent 共用五个显式插件。角色定义、实际提示词及 UI 共用同一来源；项目准备、任务、检查和已验收经验由 CLI 与桌面复用。
+- 四个 Agent 共用六个显式插件（含内置飞书 CLI）。角色定义、实际提示词及 UI 共用同一来源；项目准备、任务、检查和已验收经验由 CLI 与桌面复用。
 - Pi 固定 0.85.1，只使用版本对应的公开 SDK。外部集成先核对实际 API 和官方依据。
 - 日常完整检查：npm run check:all。check:repository 验证目录边界、JavaScript 语法及锁文件；桌面回归使用模拟账户和回环模型。打包改动还需构建并运行 check:mac-package。没有独立 lint 或 TypeScript 类型检查。
 - 业务仓库必须位于平台之外；不得引入同事副本、参考项目克隆、个人路径或真实数据作为测试依赖。测试和构建使用独立临时目录并清理；可重建产物放 dist，运行时放 runtime，下载缓存和 CLI 最近项目放 .local。npm run clean 只清理产物和下载缓存。

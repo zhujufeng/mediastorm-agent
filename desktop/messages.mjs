@@ -15,6 +15,7 @@ export function displayMessage(message, id) {
   return { id, role: message.role, toolCallId: message.toolCallId, toolName: message.toolName,
     isError: message.isError, stopReason: message.stopReason, error: clean(message.errorMessage),
     text: text.slice(0, 60000), truncated: text.length > 60000,
+    imageCount: message.role === 'user' && Array.isArray(message.content) ? message.content.filter(part => part.type === 'image').length : 0,
     calls: message.role === 'assistant' && Array.isArray(message.content) ? message.content.filter(c => c.type === 'toolCall').map(c => ({ id: c.id, name: c.name, summary: toolSummary(c.name, c.arguments) })) : [],
   };
 }

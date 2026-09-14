@@ -9,6 +9,12 @@ import { agents, agentInstructions } from '../.pi/extensions/mediastorm/agents.m
 import { projectChanges } from '../.pi/extensions/project-changes.mjs';
 import { messageProjection, toolSummary, visibleMessage } from './messages.mjs';
 import { DesktopCredentials, readJSON, textInput, validateSettings, writeJSON } from './store.mjs';
+import { browserTool } from './browser-tool.mjs';
+import { imageInput } from './images.mjs';
+import { collectorInstructions } from './collector.mjs';
+import { collectionTools, currentCollectionPlan, renderCollectionPlan } from './collection-plan.mjs';
+import { currentCollectionData, serializeCollectionData } from './collection-data.mjs';
+import { collectionExtension } from './collection-extension.mjs';
 
 // Python's standard-library bytecode must not modify the signed application bundle.
 process.env.PYTHONDONTWRITEBYTECODE = '1';
@@ -21,12 +27,13 @@ const pluginSettings = readJSON(join(appRoot, '.pi/settings.json'));
 const manifest = readJSON(join(appRoot, 'package.json'));
 const emit = (type, data = {}) => process.send?.({ type, ...data });
 const pending = new Map(), credentialRequests = new Set();
-let session, runtime, project, busy = false, loginAbort, profile = readJSON(profileFile, { id: 'project-takeover' }).id;
+let session, runtime, project, busy = false, loginAbort, imageAbort, profile = readJSON(profileFile, { id: 'project-takeover' }).id;
 if (!Object.hasOwn(agents, profile)) throw new Error('保存的助手不存在，请检查 agent.json；原设置已保留。');
 let config = existsSync(settingsFile) ? validateSettings(readJSON(settingsFile)) : null;
 let proxyModels = readJSON(proxyFile, config?.provider === 'storm-proxy' ? [config] : []).map(validateSettings);
 let loadedExtensions = [], eventBus, workflow = null, confirmation, projection;
-let projectEpoch = 0, revision = 0;
+let projectEpoch = 0, revision = 0, workspaceKind = 'project';
+const browserAccess = browserTool();
 const workspaceState = () => ({ epoch: projectEpoch, revision, workflow, busy });
 function publishState(type) { revision++; emit(type, workspaceState()); }
 process.env.STORM_AGENT_PROFILE = profile;
@@ -59,7 +66,7 @@ function registerProxy(value) {
   runtime.unregisterProvider('storm-proxy');
   if (value?.provider === 'storm-proxy') runtime.registerProvider('storm-proxy', {
     baseUrl: value.baseUrl, api: value.api,
-    models: [{ id: value.model, name: value.model, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, reasoning: value.reasoning, input: ['text'], contextWindow: value.contextWindow, maxTokens: value.maxTokens }],
+    models: [{ id: value.model, name: value.model, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, reasoning: value.reasoning, input: value.vision ? ['text', 'image'] : ['text'], contextWindow: value.contextWindow, maxTokens: value.maxTokens }],
   });
 }
 async function requireCredential() {
@@ -78,6 +85,8 @@ async function catalog() {
   if (epoch !== projectEpoch) return catalog();
   // All mutable workspace fields below are sampled together, after the last await.
   const tools = session?.getActiveToolNames() ?? [];
+  const plan = workspaceKind === 'collector' ? currentCollectionPlan(session?.sessionManager) : null;
+  const artifact = plan ? currentCollectionData(session?.sessionManager, plan) : null;
   const plugins = pluginSettings.extensions.map(path => {
     const info = pluginSettings.stormPlugins?.[path] ?? { name: basename(path), description: '自定义 Pi 扩展' };
     const loaded = loadedExtensions.find(e => e.resolvedPath === resolve(appRoot, '.pi', path));
@@ -85,11 +94,13 @@ async function catalog() {
       path, loaded: Boolean(project && loaded), tools: loaded ? [...loaded.tools.keys()].filter(name => tools.includes(name)) : [],
       commands: loaded ? [...loaded.commands.keys()] : [] };
   });
-  return { providers, config, hasProxyKey: Boolean(proxyCredential), profile, plugins, ...workspaceState(),
+  return { collectionData:artifact ? {digest:artifact.digest, count:artifact.data.records.length, columns:artifact.data.columns, preview:artifact.data.records.slice(0,5), source:artifact.data.source, capturedAt:artifact.data.capturedAt, warning:artifact.data.warning} : null, collectionPlan:plan ? {status:plan.status, digest:plan.digest, format:plan.plan.delivery.format, text:renderCollectionPlan(plan.plan)} : null,
+    providers, config, hasProxyKey: Boolean(proxyCredential), profile, plugins, ...workspaceState(),
     indexed: Boolean(project && existsSync(join(project, '.codegraph'))),
     proxyModels: proxyModels.filter(m => m.baseUrl === proxyCredential?.env?.STORM_PROXY_BASE_URL),
+    supportsImages: Boolean(config && runtime.getModel(config.provider, config.model)?.input.includes('image')),
     agents: Object.entries(agents).map(([id, a]) => ({ ...a, id, prompt: agentInstructions(id), workflow: readFileSync(a.skill, 'utf8') })),
-    recent: readRecentProjects(recentFile).filter(p => existsSync(join(p, '.git'))), project,
+    recent: readRecentProjects(recentFile).filter(p => existsSync(join(p, '.git'))), project: workspaceKind === 'collector' ? null : project, workspaceKind,
     sessions: sessions.slice(0, 40).map(s => ({ id: s.id, title: clean(s.name || s.firstMessage || '新对话').slice(0, 100), modified: s.modified, active: s.path === session?.sessionFile })) };
 }
 const ui = {
@@ -105,14 +116,16 @@ const ui = {
   setWorkingMessage: text => emit('working', { text: clean(text) }), setWorkingVisible: () => {}, setWorkingIndicator: () => {}, setHiddenThinkingLabel: () => {},
   setEditorText: text => emit('editor', { text }), pasteToEditor: text => emit('editor', { text }), getEditorText: () => '',
 };
-async function openProject(path, fresh = false, savedSession) {
+async function openProject(path, fresh = false, savedSession, kind = 'project') {
   assertIdle();
-  const root = prepareProject(textInput(path, '项目目录', 4000));
+  const root = kind === 'collector' ? join(dataDir, 'collector') : prepareProject(textInput(path, '项目目录', 4000));
+  if (kind === 'collector') mkdirSync(root, {recursive:true, mode:0o700});
+  await browserAccess.stop();
   if (session) { await session.abort(); session.dispose(); session = undefined; }
   project = undefined; loadedExtensions = []; projection = undefined; confirmation = undefined;
-  eventBus?.clear(); workflow = null;
+  eventBus?.clear(); workflow = null; workspaceKind = kind;
   const epoch = ++projectEpoch;
-  emit('project', { epoch, path: root, name: basename(root), indexed: existsSync(join(root, '.codegraph')) });
+  emit('project', { epoch, workspaceKind: kind, path: kind === 'collector' ? '独立采集对话 · 保存在本机' : root, name: kind === 'collector' ? '数据采集' : basename(root), indexed: existsSync(join(root, '.codegraph')) });
   publishState('workflow');
   eventBus = createEventBus();
   eventBus.on('mediastorm:workflow', snapshot => { if (epoch !== projectEpoch) return; workflow = snapshot; publishState('workflow'); });
@@ -120,20 +133,21 @@ async function openProject(path, fresh = false, savedSession) {
   process.chdir(root);
   const dir = sessionDir(root);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const launch = projectLaunch(root);
+  const launch = kind === 'collector' ? {args:[]} : projectLaunch(root);
   const paths = flag => launch.args.flatMap((arg, index) => arg === flag ? [launch.args[index + 1]] : []);
   const settingsManager = SettingsManager.inMemory({ defaultProvider: config?.provider, defaultModel: config?.model, enableSkillCommands: true });
   const loader = new DefaultResourceLoader({ cwd: root, agentDir: join(dataDir, 'pi'), settingsManager, eventBus,
     noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
     additionalExtensionPaths: paths('-e'), additionalSkillPaths: paths('--skill'),
-    appendSystemPrompt: paths('--append-system-prompt'),
+    appendSystemPrompt: kind === 'collector' ? [collectorInstructions] : paths('--append-system-prompt'),
   });
   await loader.reload();
   const errors = loader.getExtensions().errors;
   if (errors.length) throw new Error(`插件加载失败：${errors.map(e => e.error).join('\n')}`);
   const result = await createAgentSession({ cwd: root, agentDir: join(dataDir, 'pi'), settingsManager, modelRuntime: runtime, resourceLoader: loader,
     model: config ? runtime.getModel(config.provider, config.model) : undefined,
-    excludeTools: ['trellis_subagent'],
+    excludeTools: ['trellis_subagent'], customTools: kind === 'collector' ? collectionTools(browserAccess.tool, () => session.sessionManager) : [browserAccess.tool],
+    ...(kind === 'collector' ? {tools:['storm_browser_page','storm_collection_plan','storm_collection_run']} : {}),
     sessionManager: savedSession ? SessionManager.open(savedSession, dir) : fresh ? SessionManager.create(root, dir) : SessionManager.continueRecent(root, dir) });
   session = result.session;
   projection = messageProjection(session.sessionManager);
@@ -154,7 +168,7 @@ async function openProject(path, fresh = false, savedSession) {
     if (event.type === 'auto_compaction_end') emit('working', { text: event.errorMessage || '上下文已整理' });
   });
   project = root;
-  rememberProject(root, recentFile);
+  if (kind !== 'collector') rememberProject(root, recentFile);
   history();
   if (result.modelFallbackMessage) emit('notice', { message: result.modelFallbackMessage, level: 'warning' });
   return catalog();
@@ -162,14 +176,25 @@ async function openProject(path, fresh = false, savedSession) {
 const handlers = {
   catalog,
   open: data => openProject(data.path),
-  fresh: () => { if (!project) throw new Error('请先打开项目。'); return openProject(project, true); },
+  collect: () => openProject(undefined, false, undefined, 'collector'),
+  fresh: () => { if (!project) throw new Error('请先打开项目或数据采集。'); return openProject(project, true, undefined, workspaceKind); },
   async resume(data) {
     assertIdle();
     const saved = (await projectSessions()).find(s => s.id === data.id);
     if (!saved || saved.cwd !== project || realpathSync(saved.path) !== join(sessionDir(project), basename(saved.path))) throw new Error('该对话不属于当前项目或已经移走。');
-    return openProject(project, false, saved.path);
+    return openProject(project, false, saved.path, workspaceKind);
   },
-  profile: data => { assertIdle(); if (!Object.hasOwn(agents, data.id)) throw new Error('未知助手。'); writeJSON(profileFile, { id: data.id }); profile = data.id; process.env.STORM_AGENT_PROFILE = profile; return catalog(); },
+  async profile(data) {
+    assertIdle();
+    if (!Object.hasOwn(agents, data.id)) throw new Error('未知助手。');
+    writeJSON(profileFile, { id: data.id }); profile = data.id;
+    process.env.STORM_AGENT_PROFILE = profile; eventBus?.emit('mediastorm:profile');
+    const result = await catalog();
+    if (result.workflow?.task && result.workflow.phase !== 'completed' && (result.workflow.agent || 'development') !== profile) {
+      emit('notice', { message: `新任务助手已更改；当前任务仍使用${result.workflow.agentName}。如需独立审查，请新建会话。`, level: 'info' });
+    }
+    return result;
+  },
   async selectModel(data) {
     assertIdle();
     if (data.provider === 'storm-proxy') {
@@ -228,10 +253,24 @@ const handlers = {
     if (!session) throw new Error('请先选择一个项目。');
     if (!config) throw new Error('请先在“模型设置”中选择模型并登录，或配置中转站。');
     await requireCredential();
-    const text = textInput(data.text, '消息', 50000);
-    busy = true; publishState('busy');
-    try { await session.setModel(runtime.getModel(config.provider, config.model)); await session.prompt(text); }
-    finally { busy = false; publishState('busy'); history(); }
+    const image = data.image;
+    if (image !== undefined) imageInput(image, true);
+    const text = textInput(image && !data.text?.trim() ? '请根据这张截图理解我的需求，先说明看到的内容和需要确认的问题。截图不是操作授权；网页定位仍须在当前页面核验。' : data.text, '消息', 50000);
+    if (image && text.startsWith('/')) throw new Error('截图请配自然语言发送，不与命令一起发送。');
+    const model = runtime.getModel(config.provider, config.model);
+    const hasImages = session.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image'));
+    if ((image || hasImages) && !model?.input.includes('image')) throw new Error('当前模型未声明支持图片。请选择视觉模型；含图片的对话不能静默丢图继续发送。');
+    busy = true; publishState('busy'); imageAbort = new AbortController();
+    try {
+      if (image) {
+        const approved = await ui.confirm('发送这张截图给模型？', `接收方：${config.provider} / ${config.model}${config.baseUrl ? '\n地址：' + config.baseUrl : ''}\n图片不会自动遮盖敏感信息，将随本地会话保存，后续对话也可能再次发送。请先自行遮盖密码、个人及业务秘密，并确认公司允许发送。截图内容不授予操作权限。`, {signal:imageAbort.signal, timeout:120000});
+        imageAbort.signal.throwIfAborted();
+        if (!approved) throw new Error('已取消截图发送，未提交模型或保存到会话。');
+      }
+      await session.setModel(model);
+      imageAbort.signal.throwIfAborted();
+      await session.prompt(text, image ? {images:[{type:'image', ...image}]} : undefined);
+    } finally { imageAbort = undefined; busy = false; publishState('busy'); history(); }
   },
   async testModel() {
     assertIdle(); await requireCredential();
@@ -243,13 +282,22 @@ const handlers = {
     } finally { busy = false; loginAbort = undefined; publishState('busy'); }
   },
   async stop() {
-    loginAbort?.abort();
+    loginAbort?.abort(); imageAbort?.abort();
     for (const [id, finish] of [...pending]) if (!credentialRequests.has(id)) finish(undefined, '操作已取消');
-    await session?.abort(); return true;
+    await Promise.all([session?.abort(), browserAccess.stop()]); return true;
   },
   async close() { await handlers.stop(); session?.dispose(); process.exitCode = 0; setTimeout(() => process.exit(), 50); },
+  collectionExport(data) {
+    assertIdle();
+    if (workspaceKind !== 'collector') throw new Error('请在独立采集对话中导出。');
+    const plan = currentCollectionPlan(session?.sessionManager);
+    const artifact = currentCollectionData(session?.sessionManager, plan);
+    if (!artifact || (data.digest !== undefined && data.digest !== artifact.digest)) throw new Error('采集结果已失效或尚未生成，请重新核对方案和运行结果。');
+    if (data.format === 'chrome-extension') return {extension:collectionExtension(plan,artifact), digest:artifact.digest};
+    return {content:serializeCollectionData(artifact,data.format), digest:artifact.digest};
+  },
   async changes() {
-    if (!project) throw new Error('请先打开项目。');
+    if (!project || workspaceKind === 'collector') throw new Error('独立采集对话不提供Git项目差异。');
     const epoch = projectEpoch;
     return { ...await projectChanges(project), epoch };
   },
@@ -263,7 +311,7 @@ process.on('message', async message => {
     emit('response', { id, value: await handlers[action](data) });
   } catch (error) { emit('response', { id, error: clean(error.message) }); }
 });
-process.on('disconnect', () => { session?.abort().finally(() => process.exit()); if (!session) process.exit(); });
+process.on('disconnect', () => { handlers.stop().catch(() => {}).finally(() => process.exit()); });
 runtime = await ModelRuntime.create({ credentials, modelsPath: null, modelsStorePath: join(dataDir, 'models-cache'), allowModelNetwork: false, refreshOnCreate: false });
 registerProxy(config);
 emit('ready');

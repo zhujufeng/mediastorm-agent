@@ -51,14 +51,17 @@ export function createThread(container, welcome) {
       const owner = round ?? (orphan ??= newRound('orphan', true));
       const node = el('article', '', `message ${message.role}`), speaker = el('div', message.role === 'user' ? '你' : 'MediaStorm', 'speaker');
       const text = el('div', '', message.role === 'assistant' ? 'text markdown' : 'text'), error = el('div', '', 'error');
-      node.dataset.messageId = message.id; node.append(speaker, text, error);
+      const images = el('p', '', 'small muted message-images');
+      node.dataset.messageId = message.id; node.append(speaker, text, images, error);
       if (message.role === 'user') owner.node.prepend(node); else owner.node.append(node);
-      item = { node, text, error, owner }; messages.set(message.id, item);
+      item = { node, text, images, error, owner }; messages.set(message.id, item);
     }
     if (message.role === 'assistant') renderMarkdown(item.text, message.text); else item.text.textContent = message.text;
     item.error.textContent = message.error || (message.stopReason === 'aborted' ? '回复已停止，可在下方继续。' : '');
     if (message.truncated) item.error.append(el('p', '界面已截断，完整文本保留在本机会话记录。'));
-    item.node.hidden = !message.text && !item.error.textContent;
+    item.images.textContent = message.imageCount ? `附有${message.imageCount}张图片 · 已保存在本机会话，历史仅显示图片数量` : '';
+    item.images.hidden = !message.imageCount;
+    item.node.hidden = !message.text && !message.imageCount && !item.error.textContent;
     for (const call of message.calls ?? []) tool(call, item.owner);
   }
   return {

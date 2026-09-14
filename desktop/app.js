@@ -15,7 +15,33 @@ const inspector = createInspector({ answer: finishQuestion, revise: text => {
 } });
 const call = (action, data) => api.invoke(action, data).catch(error => { throw new Error(error.message.replace(/^Error invoking remote method '[^']+': Error: /, '')); });
 const connected = () => catalog?.config && (catalog.config.provider === 'storm-proxy' ? catalog.hasProxyKey : catalog.providers.some(p => p.id === catalog.config.provider && p.connected));
-let updateState;
+let updateState, draftImage, imageEpoch = 0, loadingImage = false;
+function setImage(value) {
+  draftImage = value; $('image-draft').hidden = !value;
+  if (value) $('image-preview').src = `data:${value.mimeType};base64,${value.data}`;
+  else $('image-preview').removeAttribute('src');
+}
+async function attachImage(file) {
+  if (!file || busy || localBusy || loadingImage) return;
+  if (!['image/png', 'image/jpeg'].includes(file.type) || file.size > 4 * 1024 * 1024) { notice('请选择4MiB以内的PNG或JPEG截图。'); return; }
+  const epoch = ++imageEpoch; loadingImage = true;
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error('截图读取失败。')); reader.readAsDataURL(file);
+    });
+    if (epoch !== imageEpoch || busy || localBusy) return;
+    const prepared = await call('prepareImage', {mimeType:file.type, data});
+    if (epoch === imageEpoch && !busy && !localBusy) { setImage(prepared); notice('截图仅在本地预览；发送前请检查是否包含敏感信息。'); }
+  } catch (error) { if (epoch === imageEpoch) notice(error.message); }
+  finally { loadingImage = false; }
+}
+$('image-add').onclick = () => $('image-file').click();
+$('image-file').onchange = () => { attachImage($('image-file').files[0]); $('image-file').value = ''; };
+$('image-remove').onclick = () => { imageEpoch++; setImage(undefined); };
+$('prompt').addEventListener('paste', event => {
+  const file = [...(event.clipboardData?.files ?? [])][0];
+  if (file) { event.preventDefault(); attachImage(file); }
+});
 function renderUpdate(state) {
   updateState = state;
   $('app-version').textContent = state.version;
@@ -41,7 +67,7 @@ $('updates-open').onclick = updatesOpen;
 $('updates-close').onclick = () => $('updates').close();
 $('update-check').onclick = async () => { try { renderUpdate(await call('checkUpdate')); } catch (error) { $('update-message').textContent = error.message; } };
 $('update-install').onclick = async () => {
-  if ($('prompt').value.trim()) { $('update-message').textContent = '输入框里还有未发送的内容，请先发送或保存，再重启安装。'; return; }
+  if ($('prompt').value.trim() || draftImage || loadingImage) { $('update-message').textContent = '输入框里还有未发送的内容，请先发送或保存，再重启安装。'; return; }
   try { renderUpdate(await call('installUpdate')); } catch (error) { $('update-message').textContent = error.message; }
 };
 $('release-page').onclick = () => call('releasePage').catch(error => { $('update-message').textContent = error.message; });
@@ -52,7 +78,10 @@ function setBusy(value) {
   document.querySelectorAll('.idle-only').forEach(control => control.disabled = working);
   $('stop').hidden = !working || loggingIn || testing || disconnected; $('send').hidden = working && !disconnected;
   $('cancel-test').hidden = !testing;
-  $('fresh').disabled = working || !catalog?.project; $('changes-open').disabled = !catalog?.project;
+  $('collection-csv').disabled = $('collection-json').disabled = working || !catalog?.collectionData;
+  $('collection-extension').hidden = catalog?.collectionPlan?.format !== 'chrome-extension';
+  $('collection-extension').disabled = working || !catalog?.collectionData || $('collection-extension').hidden;
+  $('fresh').disabled = working || (!catalog?.project && catalog?.workspaceKind !== 'collector'); $('changes-open').disabled = !catalog?.project;
   const accountReady = catalog?.providers.some(p => p.id === $('provider').value && p.connected);
   $('save-model').disabled = working || (modelMode === 'account' && !accountReady);
   $('test-model').disabled = working || (modelMode === 'account' && !accountReady);
@@ -161,6 +190,16 @@ $('agents-tab').onclick = () => { libraryTab = 'agents'; renderLibrary(); }; $('
 
 function updateWelcome() {
   const ready = connected(), project = catalog?.project;
+  welcome.querySelector('.suggestions').hidden = catalog?.workspaceKind === 'collector';
+  w('collector-examples').hidden = catalog?.workspaceKind !== 'collector';
+  if (catalog?.workspaceKind === 'collector') {
+    w('welcome-title').textContent = '你想采集什么数据？';
+    w('welcome-description').textContent = '描述目标、提供网址或截图。先核对字段和样例，再决定交付数据、插件或代码。';
+    w('setup-steps').hidden = true;
+    $('connection-label').textContent = ready ? catalog.config.model : '尚未连接';
+    $('connection-dot').classList.toggle('connected', Boolean(ready));
+    return;
+  }
   w('welcome-title').textContent = ready && project ? '今天想推进什么？' : '把想法交给助手，把决定留给你。';
   w('welcome-description').textContent = project ? `${project.split('/').at(-1)} 已准备好。描述目标，助手会先理解，再与你确认。` : '从接手一个项目开始，一起把它变得更好。';
   w('setup-steps').hidden = Boolean(ready && project);
@@ -185,6 +224,16 @@ function updateCatalog(value) {
   catalog = value;
   $('agent').replaceChildren(...value.agents.map(a => option(a.id, a.shortName)));
   $('agent').value = value.profile;
+  $('agent').hidden = value.workspaceKind === 'collector';
+  $('collector-role').hidden = value.workspaceKind !== 'collector';
+  $('history-heading').textContent = value.workspaceKind === 'collector' ? '采集对话' : '当前项目的对话';
+  $('composer-plugins').hidden = value.workspaceKind === 'collector';
+  $('progress-toggle').hidden = value.workspaceKind === 'collector';
+  $('collection-plan-open').hidden = value.workspaceKind !== 'collector';
+  $('changes-open').hidden = value.workspaceKind === 'collector';
+  $('session-search').placeholder = value.workspaceKind === 'collector' ? '搜索采集对话' : '搜索当前项目的对话';
+  $('session-search').setAttribute('aria-label', $('session-search').placeholder);
+  $('agent-description').textContent = value.workspaceKind === 'collector' ? '先核对样例，再选择交付形式；访问网页仍需确认。' : '关键节点由你确认，经验保留在项目。';
   $('agent-count').textContent = value.agents.length;
   $('composer-plugins').textContent = `${value.plugins.filter(p => p.loaded).length}/${value.plugins.length} 插件已加载`;
   if ($('library').open) renderLibrary();
@@ -213,7 +262,7 @@ function renderSessions() {
     b.title = `${session.title}\n${new Date(session.modified).toLocaleString('zh-CN')}`; b.classList.toggle('selected', session.active); b.append(name);
     b.onclick = () => run(async () => updateCatalog(await call('resume', { id: session.id }))); $('sessions').append(b);
   }
-  if (!$('sessions').children.length) { const p = document.createElement('p'); p.className = 'sidebar-empty'; p.textContent = query ? '没有匹配的对话。' : catalog?.project ? '从右侧开始，对话会自动保留。' : '选好项目，就可以开始对话。'; $('sessions').append(p); }
+  if (!$('sessions').children.length) { const p = document.createElement('p'); p.className = 'sidebar-empty'; p.textContent = query ? '没有匹配的对话。' : (catalog?.project || catalog?.workspaceKind === 'collector') ? '从右侧开始，对话会自动保留。' : '选好项目，就可以开始对话。'; $('sessions').append(p); }
   $('sessions').querySelectorAll('button').forEach(button => { button.disabled = busy || localBusy || disconnected; });
 }
 $('session-search').oninput = renderSessions;
@@ -248,7 +297,7 @@ function settingsOpen() {
   resetAuth();
   if (proxy) {
     $('base-url').value = proxy.baseUrl; $('api').value = proxy.api; $('proxy-model').value = proxy.model;
-    $('context-window').value = proxy.contextWindow; $('max-tokens').value = proxy.maxTokens; $('reasoning').checked = proxy.reasoning;
+    $('context-window').value = proxy.contextWindow; $('max-tokens').value = proxy.maxTokens; $('reasoning').checked = proxy.reasoning; $('vision').checked = proxy.vision === true;
   }
   if (config && config.provider !== 'storm-proxy') { $('provider').value = config.provider; updateAccountModels(config.model); }
   $('key').value = ''; $('key').placeholder = catalog?.hasProxyKey ? '已保存；留空保留同地址的密钥' : '粘贴 API 密钥';
@@ -266,7 +315,7 @@ $('provider').onchange = () => { resetAuth(); feedback(''); updateAccountModels(
 function modelData() {
   return modelMode === 'account' ? { provider: $('provider').value, model: $('account-model').value } : {
     provider: 'storm-proxy', model: $('proxy-model').value, baseUrl: $('base-url').value, api: $('api').value, key: $('key').value,
-    contextWindow: $('context-window').value, maxTokens: $('max-tokens').value, reasoning: $('reasoning').checked,
+    contextWindow: $('context-window').value, maxTokens: $('max-tokens').value, reasoning: $('reasoning').checked, vision: $('vision').checked,
   };
 }
 async function saveModel() { updateCatalog(await call('saveModel', modelData())); $('key').value = ''; }
@@ -294,18 +343,38 @@ const stop = () => { if (activeQuestion) finishQuestion(undefined); return call(
 $('stop').onclick = stop; $('cancel-operation').onclick = stop; $('cancel-test').onclick = stop;
 function choose() { return run(async () => updateCatalog(await call('choose'))); }
 $('choose').onclick = choose; w('welcome-project').onclick = choose;
+$('collect').onclick = () => run(async () => { updateCatalog(await call('collect')); $('prompt').focus(); });
+$('collection-plan-open').onclick = () => run(async () => {
+  const value = await call('catalog'); updateCatalog(value);
+  if (!value.collectionPlan) { notice('尚无采集方案，请让助手整理字段、样例和交付方向。'); return; }
+  $('collection-plan-title').textContent = value.collectionData ? '已采集当前页 · 不代表全站完整' : value.collectionPlan.status === 'confirmed' ? '已确认需求 · 数据尚未验证' : '未确认的采集方案';
+  $('collection-plan-text').textContent = '需求确认记录（不是运行结论）：\n' + value.collectionPlan.text;
+  const result = value.collectionData;
+  $('collection-plan-view').dataset.digest = result?.digest || '';
+  $('collection-result').textContent = result ? `${result.count}条当前页记录 · ${result.capturedAt}\n表头与已确认样例匹配。${result.warning}\n前5条预览：\n` + result.preview.map(row=>row.map((cell,i)=>`${result.columns[i]}=${JSON.stringify(cell)}`).join('；')).join('\n') : '尚无与当前方案匹配的采集结果。';
+  if (value.collectionPlan.format === 'chrome-extension') $('collection-result').textContent += '\n插件含来源、字段和业务样例，请勿公开分享。这里只核验了桌面数据，插件仍需在你的Chrome中手动加载、运行并核对；不会自动安装。';
+  $('collection-plan-view').showModal();
+});
+$('collection-plan-close').onclick = () => $('collection-plan-view').close();
+for (const format of ['csv','json','extension']) $('collection-' + format).onclick = () => run(async () => {
+  const result = await call('collectionExport', {format:format === 'extension' ? 'chrome-extension' : format, digest:$('collection-plan-view').dataset.digest});
+  $('collection-result').textContent = result.saved ? `已导出${result.fileName}。` + (format === 'extension' ? '请按文件夹内README加载插件并实际核对；含业务样例，勿公开分享。未自动安装。' : '仅当前页快照，不代表全站完整性。') : '已取消导出，未写入文件。';
+}, message => { $('collection-result').textContent = message; });
 $('agent').onchange = () => run(async () => updateCatalog(await call('profile', { id: $('agent').value })), message => { $('agent').value = catalog.profile; notice(message); });
 $('notice-close').onclick = () => notice('');
 $('fresh').onclick = () => run(async () => { updateCatalog(await call('fresh')); $('prompt').focus(); });
 $('composer').onsubmit = event => {
   event.preventDefault(); if (busy || localBusy) return;
-  const text = $('prompt').value.trim(); if (!text) return;
+  const text = $('prompt').value.trim(), image = draftImage;
+  if (loadingImage) { notice('请等待截图预览完成再发送。'); return; }
+  if (!text && !image) return;
+  if (image && !catalog?.supportsImages) { notice('当前模型未声明支持图片，请选择视觉模型或在中转站设置中核对图片能力。'); return; }
   if (!connected()) { settingsOpen(); return; }
-  if (!catalog?.project) { notice('先打开要协作的项目。你的消息会保留，选好项目后即可发送。'); choose(); return; }
+  if (!catalog?.project && catalog?.workspaceKind !== 'collector') { notice(image ? '请先打开项目；文字会保留，选好后请重新添加截图。' : '先打开要协作的项目。你的消息会保留，选好项目后即可发送。'); choose(); return; }
   notice(''); $('activity').textContent = '正在发送…'; stickToBottom = true;
   run(async () => {
     $('prompt').value = '';
-    try { await call('prompt', { text }); }
+    try { await call('prompt', { text, ...(image ? {image} : {}) }); if (draftImage === image) setImage(undefined); }
     catch (error) { if (!$('prompt').value) $('prompt').value = text; throw error; }
     finally { updateCatalog(await call('catalog')); }
   });
@@ -395,11 +464,13 @@ api.onEvent(event => {
   if (event.type === 'update') renderUpdate(event.state);
   if (event.type === 'open-updates') updatesOpen();
   if (event.type === 'project') {
+    imageEpoch++; setImage(undefined);
+    $('collection-plan-view').close(); delete $('collection-plan-view').dataset.digest; $('collection-plan-text').textContent = ''; $('collection-result').textContent = '';
     projectEpoch = event.epoch; projectionRevision = -1; statuses.clear(); inspector.reset(); updateProgress(); stickToBottom = true;
     questionQueue.length = 0; activeQuestion = undefined; $('question').close(); $('question-value').value = '';
     $('session-search').value = ''; thread.reset();
     $('project-name').textContent = event.name; $('project-path').textContent = event.path; $('project-path').title = event.path;
-    notice(''); $('activity').textContent = '项目已打开，准备就绪';
+    notice(''); $('activity').textContent = event.workspaceKind === 'collector' ? '采集对话已准备好，请描述目标' : '项目已打开，准备就绪';
   }
   if (event.type === 'history') renderHistory(event);
   if (['message', 'stream', 'message-end'].includes(event.type)) { thread.upsert(event.message); scrollToLatest(); }

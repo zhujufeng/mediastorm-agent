@@ -55,6 +55,9 @@ npm run desktop
 | `npm run check` | 上述检查，以及真实 Pi SDK/插件和任务工作流回归 |
 | `npm run check:desktop` | Markdown、更新状态、模拟令牌端点的 OAuth、回环模型、账户与项目隔离 |
 | `npm run check:all` | 日常完整检查，等于 `check` 加 `check:desktop` |
+| `npm run check:browser-collector` | 独立的合成登录态与真实 MV3 插件验证；先按[说明](browser-collector-probe.md)准备测试浏览器，不随日常检查自动下载 |
+| `npm run check:browser-page` | [受控网页工具](browser-page-channel.md)的确认、页面绑定、请求/文本限制、单调用生命周期及迟到连接清理；同样使用显式准备的合成测试浏览器 |
+| `npm run check:collection-extension` | 将实际生成的MV3插件加载到临时Chrome，验证最小权限、表格核对、停止及真实CSV/JSON下载；使用显式准备的测试浏览器 |
 | `npm run desktop:package` | 构建当前源码的 Mac 预览安装包 |
 | `npm run check:mac-package` | 脱离源码运行安装包，验证运行时、CodeGraph、链接、签名结构及 DMG/ZIP |
 | `npm run clean` | 清理安装产物与下载缓存 |

@@ -1,18 +1,29 @@
-import { app, autoUpdater, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
+import { app, autoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell } from 'electron';
 import { fork, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { atomicWrite } from './store.mjs';
 import { attachUpdates } from './updates.mjs';
+import { imageInput, imageSize } from './images.mjs';
+import { saveCollectionFile } from './collection-data.mjs';
+import { saveCollectionExtension } from './collection-extension.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+function prepareImage(value) {
+  const image = nativeImage.createFromBuffer(imageInput(value));
+  if (image.isEmpty()) throw new Error('无法解码截图，请重新导出PNG或JPEG。');
+  const {width, height} = image.getSize(); imageSize(width, height);
+  const normalized = {mimeType:'image/png', data:image.toPNG().toString('base64')};
+  imageInput(normalized, true);
+  return normalized;
+}
 app.setName('MediaStorm Agent');
 if (process.env.STORM_TEST_DATA && !app.isPackaged) app.setPath('userData', process.env.STORM_TEST_DATA);
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  let window, child, running = false, operation = false, quitting = false, loggingIn = false;
+  let window, child, running = false, operation = false, quitting = false, closing = false, loggingIn = false;
   const requests = new Map(), questions = new Map(), authLinks = new Set();
   const send = event => { if (window && !window.isDestroyed()) window.webContents.send('storm:event', event); };
   const request = (action, data = {}) => new Promise((resolve, reject) => {
@@ -29,7 +40,7 @@ else {
       process.platform !== 'darwin' || process.arch !== 'arm64' ? '当前系统暂不支持应用内更新。' :
       !app.isInApplicationsFolder() ? '请先把应用移入 Applications，再重新打开以使用更新。' : '',
     publish: state => send({ type: 'update', state }),
-    isBusy: () => operation || running || questions.size > 0 || quitting,
+    isBusy: () => operation || running || questions.size > 0 || quitting || closing,
     restart: async () => {
       operation = true;
       try {
@@ -132,9 +143,20 @@ else {
   app.on('activate', () => { window?.show(); window?.focus(); });
   app.on('before-quit', event => {
     if (quitting) return;
-    event.preventDefault(); quitting = true;
-    const timer = setTimeout(() => { child?.kill('SIGTERM'); app.quit(); }, 5000);
-    request('close').catch(() => {}).finally(() => { clearTimeout(timer); child?.kill('SIGTERM'); app.quit(); });
+    event.preventDefault();
+    if (closing) return;
+    closing = true;
+    let timer;
+    Promise.race([request('close'), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('助手清理尚未完成。')), 40000);
+    })]).then(() => { quitting = true; app.quit(); }, async () => {
+      window?.show();
+      const answer = await dialog.showMessageBox(window, { type: 'warning', title: '清理未确认',
+        message: '无法确认浏览器资源已清理，请手动检查新建网页。',
+        detail: '强制退出不会关闭你的Chrome，但可能留下本次新建的页面。',
+        buttons: ['返回应用', '仍然退出'], defaultId: 0, cancelId: 0 });
+      if (answer.response === 1) { quitting = true; child?.kill('SIGTERM'); app.quit(); }
+    }).catch(() => {}).finally(() => { closing = false; clearTimeout(timer); });
   });
   ipcMain.handle('storm:invoke', async (event, action, data = {}) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('非法调用来源。');
@@ -142,7 +164,7 @@ else {
     if (action === 'checkUpdate') return updates.check();
     if (action === 'installUpdate') return updates.install();
     if (action === 'releasePage') { await shell.openExternal('https://github.com/zhujufeng/mediastorm-agent/releases'); return true; }
-    if (quitting) throw new Error('应用正在退出，请稍候。');
+    if (quitting || closing) throw new Error('应用正在退出，请稍候。');
     await boot; if (bootError) throw bootError;
     if (action === 'answer') {
       const question = questions.get(data.id);
@@ -165,6 +187,26 @@ else {
     if (operation || running) throw new Error('当前操作仍在进行，请先停止。');
     operation = true;
     try {
+      if (action === 'prepareImage') return prepareImage(data);
+      if (action === 'collectionExport') {
+        if (!['csv','json','chrome-extension'].includes(data.format)) throw new Error('请选择数据或Chrome插件格式。');
+        if (typeof data.digest !== 'string' || !/^[a-f0-9]{64}$/.test(data.digest)) throw new Error('请先查看当前采集结果再导出。');
+        const artifact = await request('collectionExport', {format:data.format,digest:data.digest});
+        if (data.format === 'chrome-extension') {
+          const selected = await dialog.showOpenDialog(window, {title:'导出插件（含网址和业务样例，勿公开分享；未在你的Chrome中实跑）',properties:['openDirectory','createDirectory']});
+          if (selected.canceled || !selected.filePaths[0]) return {saved:false};
+          const current = await request('collectionExport', {format:data.format,digest:artifact.digest});
+          if (current.extension.digest !== artifact.extension.digest) throw new Error('插件内容已变化，请重新导出。');
+          try {return {saved:true,fileName:basename(saveCollectionExtension(selected.filePaths[0],current.extension))};}
+          catch {throw new Error('插件导出失败，请选择可写入的本地目录；不会覆盖已有文件。');}
+        }
+        const selected = await dialog.showSaveDialog(window, {title:'导出当前页快照（不代表全站或筛选范围完整）', defaultPath:`collection.${data.format}`, filters:[{name:data.format.toUpperCase(),extensions:[data.format]}]});
+        if (selected.canceled || !selected.filePath) return {saved:false};
+        const current = await request('collectionExport', {format:data.format, digest:artifact.digest});
+        try { saveCollectionFile(selected.filePath, current.content); }
+        catch { throw new Error('导出失败：请选择未使用的新文件名和支持本地文件写入的目录；不会覆盖已有文件。'); }
+        return {saved:true, fileName:basename(selected.filePath)};
+      }
       if (action === 'choose') {
         const result = await dialog.showOpenDialog(window, { title: '选择要交给助手的 Git 项目', properties: ['openDirectory'] });
         if (result.canceled) return null;
@@ -174,8 +216,11 @@ else {
         const catalog = await request('catalog');
         if (!catalog.recent.includes(data.path)) throw new Error('请通过文件夹选择器打开新项目。');
       }
-      if (!['open', 'fresh', 'resume', 'profile', 'saveModel', 'selectModel', 'login', 'logout', 'prompt', 'testModel'].includes(action)) throw new Error('不支持的操作。');
+      if (!['open', 'collect', 'fresh', 'resume', 'profile', 'saveModel', 'selectModel', 'login', 'logout', 'prompt', 'testModel'].includes(action)) throw new Error('不支持的操作。');
       if (action === 'login') { loggingIn = true; authLinks.clear(); }
+      if (action === 'prompt' && data.image !== undefined) {
+        data = {...data, image:prepareImage(data.image)};
+      }
       return await request(action, data);
     } finally { if (action === 'login') { loggingIn = false; authLinks.clear(); } operation = false; }
   });

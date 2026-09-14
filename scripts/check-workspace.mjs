@@ -7,6 +7,15 @@ import { projectChanges } from '../.pi/extensions/project-changes.mjs';
 import { displayMessage, messageProjection, toolSummary } from '../desktop/messages.mjs';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { workflowSnapshot } from '../.pi/extensions/mediastorm/presentation.mjs';
+import { imageInput, imageSize, imageLimit } from '../desktop/images.mjs';
+
+const image = {mimeType:'image/png', data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jmioAAAAASUVORK5CYII='};
+assert.ok(imageInput(image, true).length > 0);
+for (const value of [{...image, mimeType:'image/svg+xml'}, {...image, data:'file:///private'}, {...image, data:'A'.repeat(imageLimit * 2)}, {...image, path:'/private'}, {...image, data:'YWJj'}]) assert.throws(() => imageInput(value));
+for (const pair of [[0, 1], [4097, 10], [10, 9000]]) assert.throws(() => imageSize(...pair));
+assert.equal(imageSize(4096, 4096), undefined);
+const pictured = displayMessage({role:'user', content:[{type:'image', ...image}]}, 'image-id');
+assert.equal(pictured.imageCount, 1); assert.doesNotMatch(JSON.stringify(pictured), /iVBOR/);
 
 assert.equal(displayMessage({ role: 'custom', content: 'INTERNAL', display: false }, 'id'), null);
 const projected = displayMessage({ role: 'assistant', content: [{ type: 'thinking', thinking: 'HIDDEN' }, { type: 'text', text: '<img src=x>' }, { type: 'toolCall', id: 'call', name: 'bash', arguments: { command: 'curl -H Authorization:secret', key: 'secret' } }] }, 'id');

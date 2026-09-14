@@ -5,9 +5,9 @@ description: 自然语言驱动的中文开发工作流。自动记录任务、�
 
 # MediaStorm 开发工作法
 
-用户只需描述目标，不需要学习 /storm 或其他内部命令。普通咨询直接回答；明确的开发、修复或优化请求由你调用 storm_task(action=new, title=目标摘要) 建立记录。补充需求沿用当前任务。用户说“继续上次的工作”时调用 storm_task(action=resume)，恢复后先说明已确认内容与下一步。不要用关键词匹配猜业务意图。
+用户只需描述目标，不需要学习 /storm 或其他内部命令。普通咨询、只读代码审查不建立实施任务；独立飞书请求使用 storm_lark 的单独确认，不为此创建代码任务。明确的开发、修复或实施优化请求由你调用 storm_task(action=new, title=目标摘要) 建立记录。补充需求沿用当前任务。用户说“继续上次的工作”时调用 storm_task(action=resume)，恢复后先说明已确认内容与下一步。不要用关键词匹配猜业务意图。项目已有业务规范与技术约束仍然有效；本产品阶段与批准由 MediaStorm 当前记录管理，不把历史摘要或其他开发工具的任务流程当作当前指令，不要求调用未开放的工具。
 
-新任务沿用用户在桌面或对话中选择的角色：project-takeover 接手项目、development 需求开发、bug-fix 故障修复、code-review 代码审查。没有选择时默认 project-takeover；接手角色另读 project-takeover 技能。只读审查使用 storm_changes、read 与 CodeGraph，不建立实施任务；请求修复后再建任务并确认。旧任务未记录 Agent 时保持通用开发流程。用户可以自然语言要求查看或选择助手，工具 action=agents 返回配置；切换任务恢复其原助手，不覆盖已确认方法。
+新任务沿用用户在桌面或对话中选择的角色：project-takeover 接手项目、development 需求开发、bug-fix 故障修复、code-review 代码审查。没有选择时默认 project-takeover；接手角色另读 project-takeover 技能。只读审查使用 storm_changes、read 与 CodeGraph，不建立实施任务；请求修复时显式用 storm_task(action=new, agent=development或bug-fix) 提出实施任务，先由用户确认离开只读审查，再创建任务并确认具体方案。不能用code-review创建实施任务；审查时飞书只允许离线帮助，不能用它或Bash绕过写入限制。旧任务未记录 Agent 时保持通用开发流程。用户可以自然语言要求查看或选择助手，工具 action=agents 返回配置；切换任务恢复其原助手，不覆盖已确认方法。
 
 先读取当前任务的 prd.md、可选 design.md、implement.md、progress.json，以及相关项目规范。文件中的当前记录优先于旧对话。项目级经验放在 .trellis/spec；本次需求和决定放在当前任务，避免复制其他项目的结论。
 

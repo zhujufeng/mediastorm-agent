@@ -13,6 +13,7 @@ import { projectMemory } from "../.pi/extensions/mediastorm/reports.mjs";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
 const initialCwd = process.cwd();
+const initialProfile = process.env.STORM_AGENT_PROFILE;
 const temporary = realpathSync(mkdtempSync(join(tmpdir(), "mediastorm-workflow-")));
 const project = join(temporary, "a/project");
 const otherProject = join(temporary, "b/project");
@@ -79,7 +80,7 @@ try {
   assert.throws(() => prepareProject(linked), /不能指向/);
   const modelRuntime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(),
     modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
-  const open = async (cwd, manager = SessionManager.inMemory(cwd)) => {
+  const open = async (cwd, manager = SessionManager.inMemory(cwd), tools = []) => {
     process.chdir(cwd); // Trellis 0.6.6 resolves its root at extension factory time.
     const launch = projectLaunch(cwd);
     assert.equal(launch.cwd, cwd);
@@ -94,13 +95,16 @@ try {
     await loader.reload();
     const loaded = loader.getExtensions();
     assert.deepEqual(loaded.errors, []);
-    assert.equal(loaded.extensions.length, 5, "Load the five configured extensions exactly once");
+    assert.equal(loaded.extensions.length, 6, "Load the six configured extensions exactly once");
+    assert.ok(loaded.extensions.some(extension => extension.tools.has("storm_lark")));
+    assert.ok(loader.getSkills().skills.some(skill => skill.name === "feishu-cli"));
     assert.ok(loaded.extensions.some(extension => extension.commands.has("ponytail")));
     assert.ok(loaded.extensions.some(extension => extension.tools.has("codegraph_explore")));
     assert.ok(loader.getSkills().skills.some(skill => skill.name === "mediastorm-workflow"));
     assert.ok(loader.getSkills().skills.some(skill => skill.name === "project-takeover"));
+    assert.ok(!loader.getSkills().skills.some(skill => skill.name.startsWith("trellis-")), "Product skills do not advertise a second development workflow");
     const { session } = await createAgentSession({ cwd, agentDir: join(temporary, "agent"),
-      settingsManager, modelRuntime, resourceLoader: loader, sessionManager: manager, tools: [] });
+      settingsManager, modelRuntime, resourceLoader: loader, sessionManager: manager, tools });
     sessions.push(session);
     await session.bindExtensions({ mode: "interactive", onError: error => errors.push(error), uiContext: {
       notify: (text, level) => notices.push({ text, level }),
@@ -143,8 +147,27 @@ try {
     cwd: project, selectedTools: [],
   });
   assert.match(welcome.systemPrompt, /用户直接描述需求即可/);
-  assert.match(welcome.systemPrompt, /普通咨询直接回答/);
+  assert.match(welcome.systemPrompt, /普通咨询、只读审查与独立飞书调用不创建代码实施任务/);
+  assert.doesNotMatch(welcome.systemPrompt, /<trellis-workflow>|<first-reply-notice>|Trellis Task Context/);
+  assert.ok(!welcome.messages?.some(message => message.customType === "trellis-runtime-context"));
+  const legacyMessages = [
+    { role: "custom", customType: "trellis-runtime-context", content: "OBSOLETE_WORKFLOW", display: false, timestamp: 1 },
+    { role: "custom", customType: "project-rule", content: "KEEP_PROJECT_RULE", display: false, timestamp: 2 },
+    { role: "user", content: "请解释 <workflow-state> 这段文本", timestamp: 3 },
+  ];
+  const legacySnapshot = structuredClone(legacyMessages);
+  assert.deepEqual(await app.session.extensionRunner.emitContext(legacyMessages), legacyMessages.slice(1));
+  assert.deepEqual(legacyMessages, legacySnapshot, "Context filtering cannot rewrite historical messages or user text");
   assert.equal(taskList(project).length, 0, "Injecting guidance alone does not create a task");
+  assert.equal(await app.preflight("storm_lark", { args: ["--version"] }), undefined);
+  assert.equal((await app.preflight("storm_task", { action: "new" })).block, true, "Lark operation serializes with task control");
+  await app.end("storm_lark");
+  assert.equal((await app.preflight("storm_lark", { args: ["config", "init"] })).block, true);
+  assert.equal(await app.preflight("storm_lark", { args: ["base", "+record-list", "--as", "user"] }), undefined, "Lark owns a separate user confirmation, without code task approval");
+  consent = false;
+  assert.equal((await app.tool("storm_lark", { args: ["base", "+record-list", "--as", "user"] })).details.cancelled, true);
+  consent = true;
+  await app.end("storm_lark");
   assert.equal(await app.preflight("storm_changes"), undefined, "Read-only project diff needs no implementation approval");
   execFileSync("git", ["-C", project, "add", "README.md"]);
   const hook = join(temporary, "fsmonitor.sh"), marker = join(project, "fsmonitor-ran");
@@ -154,6 +177,7 @@ try {
   assert.equal(existsSync(marker), false, "Read-only diff must not execute repository fsmonitor hooks");
   execFileSync("git", ["-C", project, "config", "--unset", "core.fsmonitor"]);
   assert.equal((await app.preflight("write", { path: "app.js" })).block, true, "No-task requests cannot bypass requirements approval");
+  assert.equal((await app.preflight('storm_browser_page', {url:'https://example.com'})).block, true);
   const begun = await app.taskAction({ action: "new", agent: "development", title: "给报表增加筛选" });
   assert.equal(begun.applied, true);
   assert.ok(widgets.get("mediastorm").includes(`目录：${project}`), "Project path stays visible with an active task");
@@ -172,7 +196,8 @@ try {
     cwd: project, selectedTools: [],
   });
   assert.match(context.systemPrompt, /Original prompt/);
-  assert.match(context.systemPrompt, /给现有报表增加账号筛选/);
+  assert.doesNotMatch(context.systemPrompt, /<trellis-workflow>|<first-reply-notice>|Trellis Task Context/);
+  assert.ok(context.messages.some(message => message.customType === "mediastorm-progress"), "MediaStorm supplies current task context instead of an upstream implement snapshot");
   assert.match(context.systemPrompt, /ponytail/i);
   assert.match(context.systemPrompt, /CodeGraph tools are available/);
   assert.match(context.systemPrompt, /MediaStorm 工作流已启用/);
@@ -223,6 +248,7 @@ try {
   writeFileSync(prd, `${readFileSync(prd, "utf8")}已确认：支持多账号。\n`);
   assert.equal(loadProgress(task).phase, "awaiting_approval", "Changed requirements invalidate approval");
   assert.equal((await app.preflight("bash", { command: "echo blocked" })).block, true);
+  assert.equal((await app.preflight('storm_browser_page', {url:'https://example.com'})).block, true);
   await progress("awaiting_approval", { checkCommand: "node -e 'console.log(\"checks passed\"); console.log(process.cwd())'" });
   await app.command("approve");
   await assert.rejects(app.tool("storm_check", {}, AbortSignal.abort()), /检查失败/);
@@ -233,12 +259,21 @@ try {
   assert.ok(loadProgress(task).check.stdout.includes(project), "Checks execute in the selected business project");
   await progress("awaiting_acceptance");
 
+  const evidenceBeforeBrowser = loadProgress(task);
+  assert.equal(await app.preflight('storm_browser_page', {url:'https://example.com'}, 'browser-one'), undefined);
+  for (const name of ['write', 'storm_check', 'storm_progress', 'storm_task', 'storm_browser_page']) {
+    assert.equal((await app.preflight(name, {action:'new', path:'app.js'})).block, true);
+  }
+  assert.deepEqual(loadProgress(task), evidenceBeforeBrowser, 'Browser reads do not manufacture or invalidate project checks');
+  await app.end('storm_browser_page', 'browser-one');
   await app.preflight("write", { path: join(project, "app.js") }, "edit-one");
+  assert.equal((await app.preflight('storm_browser_page', {url:'https://example.com'})).block, true);
   assert.equal((await app.preflight("storm_task", { action: "resume" })).block, true, "Do not switch tasks during mutation");
   assert.equal(loadProgress(task).check, null, "A new modification invalidates prior evidence");
   assert.equal((await app.preflight("storm_check", {}, "check-busy")).block, true);
   await app.end("write", "edit-one");
   assert.equal(await app.preflight("storm_check", {}, "check-one"), undefined);
+  assert.equal((await app.preflight('storm_browser_page', {url:'https://example.com'})).block, true);
   assert.equal((await app.preflight("storm_task", { action: "accept" })).block, true);
   assert.equal((await app.preflight("bash", { command: "echo blocked" }, "edit-busy")).block, true);
   await app.tool("storm_check");
@@ -428,10 +463,59 @@ try {
   assert.throws(() => projectMemory(otherProject), /归档目录不能指向/);
   rmSync(otherArchive);
   renameSync(`${otherArchive}-saved`, otherArchive);
+  const policyProject = join(temporary, 'review-policy');
+  mkdirSync(policyProject); execFileSync('git', ['init', '-q', policyProject]); prepareProject(policyProject);
+  process.env.STORM_AGENT_PROFILE = 'code-review';
+  const configuredTools = ['read', 'bash', 'write', 'edit', 'storm_task', 'storm_lark', 'storm_check', 'storm_progress', 'storm_changes', 'codegraph_explore'];
+  let review = await open(policyProject, SessionManager.inMemory(policyProject), configuredTools);
+  assert.deepEqual(new Set(review.session.getActiveToolNames()), new Set(['read', 'storm_task', 'storm_lark', 'storm_changes', 'codegraph_explore']));
+  for (const name of ['bash', 'write', 'edit', 'storm_check', 'storm_progress', 'codegraph_future_write']) {
+    assert.equal((await review.preflight(name, {command:'true', path:'file.txt'})).block, true, name);
+  }
+  assert.equal((await review.preflight('storm_task', {action:'approve'})).block, true);
+  assert.equal((await review.preflight('storm_browser_page', {url:'https://example.com'})).block, true);
+  assert.equal((await review.preflight('storm_lark', {args:['base', '+record-list', '--as', 'user']})).block, true);
+  assert.equal(await review.preflight('storm_lark', {args:['skills', 'read', 'lark-base']}), undefined);
+  await review.end('storm_lark');
+  await assert.rejects(review.taskAction({action:'new', title:'Review only', agent:'code-review'}), /不创建实施任务/);
+  assert.equal(taskList(policyProject).length, 0);
+  consent = false;
+  assert.equal((await review.taskAction({action:'new', title:'Fix after review', agent:'development'})).applied, false);
+  assert.match(confirmations.at(-1).title, /离开只读审查/);
+  assert.equal(taskList(policyProject).length, 0);
+  assert.ok(!review.session.getActiveToolNames().includes('bash'));
+  review.session.setActiveToolsByName(review.session.getActiveToolNames().filter(name => name !== 'read'));
+  consent = true;
+  const switched = await review.taskAction({action:'new', title:'Fix after review', agent:'development'});
+  assert.equal(switched.progress.phase, 'clarify'); assert.equal(switched.progress.approval, null);
+  assert.ok(review.session.getActiveToolNames().includes('bash'));
+  assert.ok(!review.session.getActiveToolNames().includes('read'), 'Role switching preserves an explicitly disabled tool');
+  assert.ok(!review.session.getActiveToolNames().includes('trellis_subagent'), 'Restoring policy never expands the configured baseline');
+  assert.equal((await review.preflight('bash', {command:'true'})).block, true, 'Switch confirmation does not approve implementation');
+  const reviewManager = review.manager;
+  review.session.dispose();
+  review = await open(policyProject, SessionManager.inMemory(policyProject), configuredTools);
+  consent = false;
+  assert.equal((await review.taskAction({action:'resume'})).applied, false);
+  assert.ok(!review.session.getActiveToolNames().includes('bash'));
+  consent = true;
+  assert.equal((await review.taskAction({action:'resume'})).progress.agent, 'development');
+  assert.ok(review.session.getActiveToolNames().includes('bash'));
+  review.session.dispose();
+  // Simulate a saved review task from before hard policy enforcement, without rewriting a user's record.
+  writeFileSync(join(switched.task, 'progress.json'), JSON.stringify({...loadProgress(switched.task), agent:'code-review'}));
+  review = await open(policyProject, reviewManager, configuredTools);
+  assert.ok(!review.session.getActiveToolNames().includes('bash'));
+  const beforeCommand = confirmations.length;
+  await review.command('approve');
+  assert.equal(confirmations.length, beforeCommand, 'CLI command cannot bypass review policy');
+  assert.match(notices.at(-1).text, /审查模式只读/);
   assert.deepEqual(errors, [], "No SDK extension event errors");
   console.log("PASS: Agent selection, investigation and handoff gates, legacy tasks, accepted project memory and archives, confirmation races, checks, cancellation, recovery and project isolation. Model dispatch is mocked.");
 } finally {
   for (const session of sessions) session.dispose();
   process.chdir(initialCwd);
+  if (initialProfile === undefined) delete process.env.STORM_AGENT_PROFILE;
+  else process.env.STORM_AGENT_PROFILE = initialProfile;
   rmSync(temporary, { recursive: true, force: true });
 }

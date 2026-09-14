@@ -9,6 +9,7 @@ if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('
 const downloads = join(root, '.local/desktop-downloads'), runtime = join(root, 'runtime');
 mkdirSync(downloads, { recursive: true }); mkdirSync(runtime, { recursive: true });
 const sources = [
+  { name: 'lark', file: 'lark-cli-1.0.90-darwin-arm64.tar.gz', url: 'https://github.com/larksuite/cli/releases/download/v1.0.90/lark-cli-1.0.90-darwin-arm64.tar.gz', sha256: '894c68176bd4015e8478094ded6d9c7ad76abf9d9cd5679d36b23d0b74d4db02', folder: '.' },
   { name: 'node', file: 'node-v24.14.1-darwin-arm64.tar.gz', url: 'https://nodejs.org/dist/v24.14.1/node-v24.14.1-darwin-arm64.tar.gz', sha256: '25495ff85bd89e2d8a24d88566d7e2f827c6b0d3d872b2cebf75371f93fcb1fe', folder: 'node-v24.14.1-darwin-arm64' },
   { name: 'python', file: 'cpython-3.12.14+20260901-aarch64-apple-darwin-install_only_stripped.tar.gz', url: 'https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.12.14%2B20260901-aarch64-apple-darwin-install_only_stripped.tar.gz', sha256: '81a359f1cfadd4da11766534c5913791cea55f26e1bb902cacd2a531bb1e4b2b', folder: 'python' },
 ];
@@ -35,5 +36,8 @@ const graph = join(root, 'node_modules/@colbymchenry/codegraph-darwin-arm64/bin/
 if (!existsSync(graph)) throw new Error(`缺少 CodeGraph 运行时：${graph}`);
 const link = join(runtime, 'bin/codegraph');
 if (!existsSync(link)) symlinkSync('../../node_modules/@colbymchenry/codegraph-darwin-arm64/bin/codegraph', link);
+const larkLink = join(runtime, 'bin/lark-cli');
+if (!existsSync(larkLink)) symlinkSync('../lark/lark-cli', larkLink);
+if (execFileSync(larkLink, ['--version'], { encoding: 'utf8', timeout: 15000 }).trim() !== 'lark-cli version 1.0.90') throw new Error('飞书 CLI 版本不符，请重新准备 runtime/lark。');
 writeFileSync(join(runtime, 'sources.json'), JSON.stringify(sources, null, 2) + '\n');
-console.log('Mac 运行时已准备：Node、Python、Git、CodeGraph。');
+console.log('Mac 运行时已准备：Node、Python、Git、CodeGraph、飞书 CLI。');

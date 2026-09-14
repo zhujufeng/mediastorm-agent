@@ -40,6 +40,8 @@ The runnable assertion script is scripts/check-pi.mjs. Keep its checks for exten
 
 Workflow behavior is checked in scripts/check-workflow.mjs; see pi-workflow.md. The original check-pi.mjs retains its no-tool-execution contract. Do not add a framework just for these checks.
 
+The opt-in `npm run check:browser-collector` separately verifies a synthetic authenticated backend and real MV3 extension using pinned Playwright as a development dependency only. Prepare its browser explicitly; this command never downloads it or attaches to personal profiles/debug ports. Temporary profiles and servers must be cleaned on success and failure. Synthetic CDP attachment is not evidence of daily-Chrome `autoConnect`, enterprise SSO, or AI-generated plugin quality. Reproduction and limitations: `docs/browser-collector-probe.md`.
+
 ## 7. Wrong vs Correct
 
 Wrong: with tools: [], expect session.getAllTools() to list every extension registration.

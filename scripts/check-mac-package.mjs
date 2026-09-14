@@ -20,6 +20,7 @@ try {
   }
   checkLinks(bundle);
   for (const path of ['.local','.git','.trellis/tasks','.trellis/workspace','.pi/auth.json','.pi/sessions']) assert.equal(existsSync(join(root,path)),false,path);
+  execFileSync(process.execPath,['scripts/check-lark.mjs',root],{stdio:'inherit',timeout:45000});
   execFileSync(process.execPath,['scripts/check-desktop-render.mjs',root],{stdio:'inherit',timeout:15000});
   execFileSync(process.execPath,['scripts/check-updates.mjs',root],{stdio:'inherit',timeout:15000});
   execFileSync(process.execPath,['scripts/check-desktop-auth.mjs',root],{stdio:'inherit',timeout:90000});

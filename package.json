@@ -10,7 +10,11 @@
   "scripts": {
     "check": "npm run check:repository && node scripts/check-pi.mjs && node scripts/check-workflow.mjs",
     "check:repository": "node scripts/check-repository.mjs",
-    "check:all": "npm run check && npm run check:desktop",
+    "check:all": "npm run check && npm run check:lark && npm run check:desktop",
+    "check:lark": "node scripts/check-lark.mjs",
+    "check:browser-collector": "node scripts/check-browser-collector.mjs",
+    "check:collection-extension": "node scripts/check-collection-extension.mjs",
+    "check:browser-page": "node scripts/check-browser-page.mjs",
     "clean": "node scripts/clean.mjs",
     "check:workflow": "node scripts/check-workflow.mjs",
     "pi": "node scripts/pi-project.mjs",
@@ -18,7 +22,7 @@
     "desktop": "electron .",
     "desktop:runtime": "node scripts/prepare-desktop-runtime.mjs",
     "desktop:package": "node scripts/package-mac.mjs",
-    "check:desktop": "node scripts/check-updates.mjs && node scripts/check-desktop-render.mjs && node scripts/check-workspace.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
+    "check:desktop": "node scripts/check-collection-extension.mjs --unit && node scripts/check-collection-data.mjs && node scripts/check-collection-plan.mjs && node scripts/check-updates.mjs && node scripts/check-desktop-render.mjs && node scripts/check-workspace.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
     "check:desktop-ui": "electron scripts/check-desktop-ui.cjs",
     "check:mac-package": "node scripts/check-mac-package.mjs",
     "check:updates": "node scripts/check-updates.mjs",
@@ -31,11 +35,13 @@
     "@earendil-works/pi-ai": "0.85.1",
     "@earendil-works/pi-coding-agent": "0.85.1",
     "@vndv/pi-codegraph": "0.1.10",
-    "dugite": "3.2.3"
+    "dugite": "3.2.3",
+    "puppeteer-core": "25.10.0"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "electron": "44.3.0"
+    "electron": "44.3.0",
+    "playwright": "1.63.0"
   },
   "main": "desktop/main.mjs"
 }

@@ -30,11 +30,11 @@ export const agents = {
     skill: workflowSkill,
   },
   "code-review": {
-    name: "代码审查与简化助手", shortName: "代码审查", icon: "check",
+    name: "代码审查与简化助手", shortName: "代码审查", icon: "check", readOnly: true,
     description: "审查当前改动或指定模块，发现真实缺陷和可以删掉的复杂度。",
     steps: ["确认审查范围", "追踪相关实现", "按影响给出证据", "确认需要修复的项"],
     deliverables: "包含位置、触发条件、影响与修复建议的审查结果；无确切问题时如实说明。",
-    prompt: "你的职责是对指定范围给出有证据的代码审查。先读目标，用 storm_changes 查看实际差异，再追踪上下文，优先检查正确性、权限、数据完整性和维护成本。每个发现写明文件位置、触发条件、实际影响及最小修复建议，区分事实与推测。遵循 Ponytail，只为真实问题增加代码。用户只要求审查时保持只读，不创建实施任务；要求修复后才走公共确认与验收流程。审查不是全仓安全认证。",
+    prompt: "你的职责是对指定范围给出有证据的代码审查。先读目标，用 storm_changes 查看实际差异，再追踪上下文，优先检查正确性、权限、数据完整性和维护成本。每个发现写明文件位置、触发条件、实际影响及最小修复建议，区分事实与推测。遵循 Ponytail，只为真实问题增加代码。用户只要求审查时保持只读，不创建实施任务；要求修复时用 storm_task new 显式选择 development 或 bug-fix，经用户确认离开审查模式后才建立实施任务，再走方案确认与验收。审查模式不能运行命令、写文件或调用飞书业务操作，飞书只可查离线帮助。审查不是全仓安全认证。",
     skill: workflowSkill,
   },
 };
@@ -42,6 +42,12 @@ export const agents = {
 export function agentProfile(id = "development") {
   if (!Object.hasOwn(agents, id)) throw new Error(`未知 Agent：${id}。请查看 storm_task agents。`);
   return agents[id];
+}
+
+export function effectiveAgent(state, preferred = "project-takeover") {
+  const id = state && state.phase !== "completed" ? state.agent || "development" : preferred;
+  agentProfile(id);
+  return id;
 }
 
 export function agentInstructions(id) {
