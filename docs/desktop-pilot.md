@@ -1,10 +1,10 @@
 # Mac 桌面助手试用
 
-2026-09-10，当前为 0.4.0 桌面预览版，修复首次授权阻塞并重整界面。首版先支持 **Apple Silicon（M 系列）Mac，macOS 13.5 及以上**；Windows 和 Intel Mac 尚未构建验证。模型入口同时提供账户登录和中转站配置。
+当前为 0.5.0 桌面预览版，新增独立数据采集、截图输入、固定Chrome采集插件交付和飞书CLI。首版先支持 **Apple Silicon（M 系列）Mac，macOS 13.5 及以上**；Windows 和 Intel Mac 尚未构建验证。模型入口同时提供账户登录和中转站配置。
 
-## 当前源码工作台（尚未发布为安装包）
+## 0.5.0工作台
 
-`npm run desktop` 运行新版三栏工作台；下方 0.4.0 Release 下载链接仍指向此前发布的安装包。本次没有替换 Applications、打包或发布，也没有改账户/会话格式。
+0.5.0 安装包与`npm run desktop`均提供三栏工作台。升级需退出旧应用后手动替换，原账户和对话保留；另一台Mac需自行连接模型与登录浏览器。
 
 - 左侧搜索当前项目最近 40 个会话；中间按用户回合展开工具过程，公开回答独立显示。停止、工具失败和无最终结果不会冒充检查通过。
 - 右上角打开工作详情，分别查看实际任务方案、当前 Git 文件差异和保存的最近检查。方案文档与交付可展开；检查注明命令、时间、退出状态和原始输出，需自行核对跳过项。
@@ -28,7 +28,7 @@ npm run check:desktop-ui
 
 ## 如何试用
 
-1. 从 [GitHub Release](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.4.0) 下载并打开 `MediaStorm-Agent-0.4.0-mac-arm64.dmg`，把 MediaStorm Agent 拖入 Applications。
+1. 从 [GitHub Release](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.0) 下载并打开 `MediaStorm-Agent-0.5.0-mac-arm64.dmg`，把 MediaStorm Agent 拖入 Applications。
 2. 从启动台打开应用，点击首页“连接模型”或左下角“模型与连接”。以后无需 npm 或终端启动。
 3. 有订阅的同事选“订阅账户”，选择服务和模型，点击登录后自动打开浏览器；完成授权后应用自动保存所选模型；用中转站的同事填写服务地址、协议、模型 ID 与密钥，点击“保存并测试连接”验证当前填写的设置。
 4. 点击“打开项目”，选择本地 Git 仓库根目录。当前项目完整路径会持续显示；首次使用会准备本项目的 Trellis 任务目录，已有配置不覆盖。

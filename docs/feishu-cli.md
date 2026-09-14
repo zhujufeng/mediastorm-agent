@@ -1,6 +1,6 @@
 # 内置飞书 CLI
 
-当前源码内置官方 [larksuite/cli](https://github.com/larksuite/cli) **1.0.90**（MIT）。随 Mac arm64 安装包提供，不需要员工再安装 Node/npm/CLI；上方 Release 的旧 0.4.0 包尚不包含此功能。
+当前源码内置官方 [larksuite/cli](https://github.com/larksuite/cli) **1.0.90**（MIT）。随 Mac arm64 安装包提供，不需要员工再安装 Node/npm/CLI；从 0.5.0 预览版起随包提供。
 
 ## 怎么用
 

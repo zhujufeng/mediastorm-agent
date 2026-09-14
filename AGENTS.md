@@ -31,5 +31,5 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - 账户在 Electron userData，任务与记忆在目标项目 .trellis。源码不携带凭据、个人会话、开发日志或历史任务。现有记录和账户不会随清理或升级删除。
 - .trellis/spec 只保留现行可执行约定，不保留空模板或将本项目约定宣称为已审计的公司标准。上游生成的运行代码与许可证保留，更新 Trellis 时重新检查集成和规范。
 - GitHub Actions 在 Mac arm64 干净检出后安装依赖、准备运行时、运行检查和独立打包；发布另按 docs/releasing.md，不由检查工作流自动发布。
-- 已发布 0.4.0 预览；Developer ID、公证、另一台 Mac 完整业务任务及实际自动升级仍待验收。公开 DMG 不等于这些验证完成。
+- 当前发布版本为 0.5.0 预览；Developer ID、公证、另一台 Mac 完整业务任务及实际自动升级仍待验收。公开 DMG 不等于这些验证完成。
 - 面向使用者的说明和产品文档使用简洁中文。初始化开发身份：python3 .trellis/scripts/init_developer.py <name>。

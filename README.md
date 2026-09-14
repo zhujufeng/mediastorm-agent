@@ -2,11 +2,11 @@
 
 基于 [Pi](https://pi.dev) 的桌面 Agent 平台。选择项目，直接说“帮我优化当前项目”，助手会调查问题、逐步澄清需求，确认方案后完成实现与检查，交付时由你验收。
 
-当前为 **0.4.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+当前为 **0.5.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
 
 ## 下载安装
 
-**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.4.0/MediaStorm-Agent-0.4.0-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.4.0)
+**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.5.0/MediaStorm-Agent-0.5.0-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.0)
 
 打开 DMG，将应用拖入 Applications，然后从应用程序启动。无需安装 Node、npm 或 Pi。
 
@@ -48,13 +48,13 @@ npm run desktop
 
 当前源码已统一产品工作流上下文：不再自动注入重复的 Trellis 开发流程；旧会话的自动流程消息只在模型请求中排除，原历史和项目规则保留。代码审查角色现已限制实际可调用工具，不能执行项目命令、写文件或调用飞书业务操作；需要修复时先明确确认转为实施任务，再确认方案。这不是系统执行沙箱。
 
-当前源码已接入三栏工作台：会话搜索、回合级工具过程，以及真实方案确认、按文件 Git 差异和检查/验收。尚未更新上方 Release 安装包。改动界面后另运行 `npm run check:desktop-ui`，使用临时项目和本地模型替身检查真实桌面闭环；证据与覆盖限制见[桌面试用说明](docs/desktop-pilot.md#当前源码工作台尚未发布为安装包)。
+0.5.0 已包含三栏工作台：会话搜索、回合级工具过程，以及真实方案确认、按文件 Git 差异和检查/验收。改动界面后另运行 `npm run check:desktop-ui`，使用临时项目和本地模型替身检查真实桌面闭环；证据与覆盖限制见[桌面试用说明](docs/desktop-pilot.md#050工作台)。
 
-## 飞书 CLI（当前源码，尚未发布）
+## 飞书 CLI
 
 随包提供官方 `lark-cli 1.0.90` 和按需技能入口，可直接说“帮我读取这张飞书多维表格”。不需要额外全局安装，不做飞书专属后端。首次配置/登录沿用 CLI 原生终端与浏览器授权；已有官方 CLI 登录可能可以复用。联网或业务操作由界面单独确认，不携带开发者账户。
 
-使用步骤、凭据与数据边界见[飞书 CLI 使用说明](docs/feishu-cli.md)。上方已发布的 0.4.0 安装包尚不包含此能力。
+使用步骤、凭据与数据边界见[飞书 CLI 使用说明](docs/feishu-cli.md)。0.5.0 安装包已包含此能力。
 
 ## 构建 Mac 安装包
 
@@ -64,11 +64,11 @@ npm run desktop:package
 npm run check:mac-package
 ```
 
-生成 `dist/MediaStorm-Agent-0.4.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
+生成 `dist/MediaStorm-Agent-0.5.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
 
-源码开发版可从左侧[数据采集](docs/data-collector.md)直接开始，无需Git项目；共用调查过程，再按场景讨论数据、插件或Python/TS交付。已支持字段/样例方案确认，以及当前页标准表格的实际核对、预览和CSV/JSON导出；不代表全站或筛选范围完整。另可导出复用同一规则的Chrome插件文件夹，需手动加载并在真实后台核对；Python/TS生成与运行仍待开发。
+0.5.0 可从左侧[数据采集](docs/data-collector.md)直接开始，无需Git项目；共用调查过程，再按场景讨论数据、插件或Python/TS交付。已支持字段/样例方案确认，以及当前页标准表格的实际核对、预览和CSV/JSON导出；不代表全站或筛选范围完整。另可导出复用同一规则的Chrome插件文件夹，需手动加载并在真实后台核对；Python/TS生成与运行仍待开发。
 
-源码开发版另提供[受控网页调查](docs/browser-page-channel.md)：在任务方案批准后，逐次确认连接Chrome、打开新页和将有限正文发送给模型。只读审查不可用；不等于已实现采集插件生成。另支持[粘贴或添加截图描述需求](docs/screenshot-input.md)，需视觉模型并单独确认发送。这些功能尚未更新到已安装应用或公开预览包。
+0.5.0 另提供[受控网页调查](docs/browser-page-channel.md)：在任务方案批准后，逐次确认连接Chrome、打开新页和将有限正文发送给模型。只读审查不可用；插件交付仅支持上述固定标准表格模板。另支持[粘贴或添加截图描述需求](docs/screenshot-input.md)，需视觉模型并单独确认发送。旧应用需手动下载新版并替换安装，账户不会随安装包分发到另一台电脑。
 
 **这是预览版本。** 已验证 OpenAI 浏览器授权、实际模型请求和本机桌面操作；其他账户、真实中转站业务任务及另一台 Mac 安装仍需验收。当前只有本机 ad-hoc 签名，尚未完成 Developer ID 签名和 Apple 公证。详细操作及验证范围见[桌面试用说明](docs/desktop-pilot.md)。
 

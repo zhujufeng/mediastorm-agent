@@ -1,6 +1,6 @@
 # 受控网页调查（本地开发版）
 
-桌面已接入`storm_browser_page`，底层为`desktop/browser-page.mjs`，宿主为`desktop/browser-tool.mjs`。这是一页有限文本调查，不是采集插件生成闭环；尚未更新已安装应用或公开版本。
+桌面已接入`storm_browser_page`，底层为`desktop/browser-page.mjs`，宿主为`desktop/browser-tool.mjs`。从0.5.0预览版起随包提供，旧应用需手动更新。这是有限单页调查底层；当前页数据与固定Chrome插件交付见docs/data-collector.md。
 
 ## 桌面使用
 
