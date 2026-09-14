@@ -309,8 +309,11 @@ async function run() {
   const before = requests.length;
   await js("document.querySelector('#prompt').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true}))");
   await delay(80); assert.equal(requests.length, before, 'IME must not submit');
-  await js("document.querySelector('#prompt').focus()"); key('Tab'); await delay(80);
-  assert.equal(await js("getComputedStyle(document.activeElement).outlineStyle"), 'solid');
+  // The temporary Chrome window can own OS focus after collector checks.
+  app.focus({steal:true}); window.focus();
+  await until(() => js('document.hasFocus()'), 'desktop owns keyboard focus');
+  await js("document.querySelector('#prompt').focus()"); key('Tab');
+  await until(() => js("getComputedStyle(document.activeElement).outlineStyle === 'solid'"), 'keyboard focus outline is painted');
   const listHeld = new Promise(resolve => { listReached = resolve; });
   worker.send({ reply: 'test-only', testList: 'hold' }); await click('#library-open'); await listHeld;
   await input('#prompt', 'UI_PLAN 请先整理需求与方案'); key('Return');
