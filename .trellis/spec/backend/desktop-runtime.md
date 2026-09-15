@@ -23,7 +23,7 @@ SDK loader 的 appendSystemPrompt 为 string[]；自定义模型需要 cost={inp
 
 `desktop/browser-page.mjs`仅接受可信宿主的已连接Browser和真实确认回调，先确认再创建自有target；每次读取另行确认，并在确认/提取后复核主frame、loader、URL和导航revision。只提供read/close，不接受模型提供的脚本、targetId或批准值。宿主须禁用非目标页自动连接/采集、设置协议超时，并在中止/退出时await close；模块不能Browser.close或操作其他页面。创建/断线后的清理状态未知须报告，不自动重试。
 
-Fetch限制仅作用于截获的目标HTTP(S)请求，不是全浏览器/系统网络沙箱。固定主frame提取排除表单/隐藏节点，返回有限、常见凭据过滤的文本和untrusted标记；业务数据传输仍需单独确认。worker通过SDK customTools注册storm_browser_page；browser-tool.mjs负责固定Chrome连接、三次真实确认、单调用read/close/disconnect及stop。MediaStorm工具事件门禁要求有效批准、实施阶段和独占控制，不进入审查白名单。项目切换和退出await stop，关闭未知保留失败，退出失败不能自动强杀；重复退出也须等待。连接超时后的迟到结果只disconnect，不开页。Puppeteer Core25.10.0为唯一生产连接驱动，Playwright仍仅测试，不随包下载浏览器。`check:browser-page`使用合成临时浏览器验证；check:desktop-ui通过仅测试预加载器替换连接端点，验证真实确认按钮和输出；具体接口、范围与未覆盖项见`docs/browser-page-channel.md`。
+Fetch限制仅作用于截获的目标HTTP(S)请求，不是全浏览器/系统网络沙箱。固定主frame提取排除表单/隐藏节点，返回有限、常见凭据过滤的文本和untrusted标记；业务数据传输仍需单独确认。worker通过SDK customTools注册storm_browser_page；browser-tool.mjs负责固定Chrome连接、三次真实确认、单调用read/close/disconnect及stop。MediaStorm工具事件门禁要求有效批准、实施阶段和独占控制，不进入审查白名单。项目切换和退出await stop，关闭未知保留失败，退出失败不能自动强杀；重复退出也须等待。连接超时后的迟到结果只disconnect，不开页。固定browserConnectOptions可以冻结，但传给Puppeteer必须新建浅拷贝；25.10.0的connect会执行options.logger ??= debug，直接传冻结对象会在读取Chrome地址前抛TypeError。check-browser-connect用隔离HOME和真实SDK默认入口覆盖此边界（含独立包），check:browser-page另在临时HOME放置自有Chrome连接元数据走真实channel发现/读取/清理；不能只靠替换端点且复制配置的测试。Puppeteer Core25.10.0为唯一生产连接驱动，Playwright仍仅测试，不随包下载浏览器。`check:browser-page`使用合成临时浏览器验证；check:desktop-ui通过仅测试预加载器替换连接端点，验证真实确认按钮和输出；具体接口、范围与未覆盖项见`docs/browser-page-channel.md`。
 
 ## 独立数据采集入口
 

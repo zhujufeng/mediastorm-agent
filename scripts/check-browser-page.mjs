@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -70,6 +72,23 @@ test('owned browser page consent, filtering, navigation binding and cleanup', { 
   report.browser = await browser.version();
   const pass = name => { passed.push(name); console.log('PASS:', name); };
   const approved = { confirm: async () => true };
+  // Real channel discovery, not a connector override. Only the owned test Chrome's metadata is copied.
+  const isolatedHome = join(temporary,'home');
+  const discovery = join(isolatedHome,'Library/Application Support/Google/Chrome');
+  await mkdir(discovery,{recursive:true});
+  await writeFile(join(discovery,'DevToolsActivePort'),`${port}\n${path}\n`);
+  const ownedClosed = context.waitForEvent('page',{timeout:30000}).then(page=>page.waitForEvent('close',{timeout:30000}));
+  const defaultConnection = promisify(execFile)(process.execPath,['--input-type=module','-e',`
+    import assert from 'node:assert/strict';
+    import {browserTool} from './desktop/browser-tool.mjs';
+    let confirmations=0;
+    const result=await browserTool().tool.execute('default-channel',{url:${JSON.stringify(base+'/plain')}},undefined,undefined,
+      {hasUI:true,ui:{confirm:async()=>{confirmations++;return true;}}});
+    assert.equal(confirmations,3);assert.match(result.details.text,/安全数据/);
+  `],{cwd:root,env:{...process.env,HOME:isolatedHome},timeout:30000});
+  await Promise.all([defaultConnection,ownedClosed]);
+  assert.equal(await sentinel.evaluate(()=>window.sentinel),'keep-me');
+  pass('production default channel discovers isolated Chrome, confirms three times, reads and closes only its own page');
   await assert.rejects(openBrowserPage(browser, base + '/plain'), /确认界面/);
   await assert.rejects(openBrowserPage(browser, base + '/plain', { confirm: async () => false }), /取消/);
   await assert.rejects(openBrowserPage(browser, base + '/plain', { ...approved, signal: AbortSignal.abort() }));

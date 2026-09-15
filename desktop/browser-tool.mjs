@@ -16,7 +16,8 @@ function wait(promise, signal) {
   }).finally(() => signal.removeEventListener('abort', abort));
 }
 
-export function browserTool(connect = () => puppeteer.connect(browserConnectOptions)) {
+// Puppeteer 25.10.0 mutates options (logger); keep the policy frozen, pass a fresh copy.
+export function browserTool(connect = () => puppeteer.connect({ ...browserConnectOptions })) {
   let active, controller, cleanupError;
   async function run(params, signal, ctx) {
     if (!ctx.hasUI) throw new Error('浏览器工具仅支持桌面真实确认界面。');

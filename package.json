@@ -22,7 +22,7 @@
     "desktop": "electron .",
     "desktop:runtime": "node scripts/prepare-desktop-runtime.mjs",
     "desktop:package": "node scripts/package-mac.mjs",
-    "check:desktop": "node scripts/check-collection-extension.mjs --unit && node scripts/check-collection-data.mjs && node scripts/check-collection-plan.mjs && node scripts/check-updates.mjs && node scripts/check-desktop-render.mjs && node scripts/check-workspace.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
+    "check:desktop": "node scripts/check-browser-connect.mjs && node scripts/check-collection-extension.mjs --unit && node scripts/check-collection-data.mjs && node scripts/check-collection-plan.mjs && node scripts/check-updates.mjs && node scripts/check-desktop-render.mjs && node scripts/check-workspace.mjs && node scripts/check-desktop-auth.mjs && node scripts/check-desktop.mjs",
     "check:desktop-ui": "electron scripts/check-desktop-ui.cjs",
     "check:mac-package": "node scripts/check-mac-package.mjs",
     "check:updates": "node scripts/check-updates.mjs",
