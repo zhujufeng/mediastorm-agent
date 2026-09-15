@@ -2,11 +2,11 @@
 
 基于 [Pi](https://pi.dev) 的桌面 Agent 平台。选择项目，直接说“帮我优化当前项目”，助手会调查问题、逐步澄清需求，确认方案后完成实现与检查，交付时由你验收。
 
-当前为 **0.5.1 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+当前为 **0.6.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
 
 ## 下载安装
 
-**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.5.1/MediaStorm-Agent-0.5.1-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.1)
+**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.6.0/MediaStorm-Agent-0.6.0-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.6.0)
 
 打开 DMG，将应用拖入 Applications，然后从应用程序启动。无需安装 Node、npm 或 Pi。
 
@@ -66,13 +66,13 @@ npm run desktop:package
 npm run check:mac-package
 ```
 
-生成 `dist/MediaStorm-Agent-0.5.1-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
+生成 `dist/MediaStorm-Agent-0.6.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
 
 0.5.0 可从左侧[数据采集](docs/data-collector.md)直接开始，无需Git项目；共用调查过程，再按场景讨论数据、插件或Python/TS交付。已支持字段/样例方案确认，以及当前页标准表格的实际核对、预览和CSV/JSON导出；不代表全站或筛选范围完整。另可导出复用同一规则的Chrome插件文件夹，需手动加载并在真实后台核对；Python/TS生成与运行仍待开发。
 
 0.5.0 另提供[受控网页调查](docs/browser-page-channel.md)：在任务方案批准后，逐次确认连接Chrome、打开新页和将有限正文发送给模型。只读审查不可用；插件交付仅支持上述固定标准表格模板。另支持[粘贴或添加截图描述需求](docs/screenshot-input.md)，需视觉模型并单独确认发送。旧应用需手动下载新版并替换安装，账户不会随安装包分发到另一台电脑。
 
-当前源码另已补齐自主商品调查、识别分页、核对范围内全部记录和保存方案后再次运行；见[采集说明](docs/data-collector.md)。这部分尚未发布，也尚未在真实小红书后台验收，已安装的0.5.1不包含它。
+0.6.0新增自主商品调查、识别分页、核对范围内全部记录和保存方案后再次运行；见[采集说明](docs/data-collector.md)。合成环境已验证，真实小红书后台与真实模型判断质量仍需验收。旧版请从“下载与版本记录”下载并手动替换应用，账号与历史对话保留。
 
 **这是预览版本。** 已验证 OpenAI 浏览器授权、实际模型请求和本机桌面操作；其他账户、真实中转站业务任务及另一台 Mac 安装仍需验收。当前只有本机 ad-hoc 签名，尚未完成 Developer ID 签名和 Apple 公证。详细操作及验证范围见[桌面试用说明](docs/desktop-pilot.md)。
 

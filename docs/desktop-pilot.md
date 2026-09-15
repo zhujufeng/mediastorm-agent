@@ -1,6 +1,6 @@
 # Mac 桌面助手试用
 
-当前为 0.5.1 桌面预览版，修复Chrome连接入口错误，保留独立数据采集、截图输入、固定Chrome采集插件交付和飞书CLI。首版先支持 **Apple Silicon（M 系列）Mac，macOS 13.5 及以上**；Windows 和 Intel Mac 尚未构建验证。模型入口同时提供账户登录和中转站配置。
+当前为 0.6.0 桌面预览版，新增自主商品调查、分页核对及保存方案后重跑，保留独立数据采集、截图输入、固定Chrome采集插件交付和飞书CLI。首版先支持 **Apple Silicon（M 系列）Mac，macOS 13.5 及以上**；Windows 和 Intel Mac 尚未构建验证。模型入口同时提供账户登录和中转站配置。
 
 ## 0.5.0工作台
 
@@ -28,7 +28,7 @@ npm run check:desktop-ui
 
 ## 如何试用
 
-1. 从 [GitHub Release](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.1) 下载并打开 `MediaStorm-Agent-0.5.1-mac-arm64.dmg`，把 MediaStorm Agent 拖入 Applications。
+1. 从 [GitHub Release](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.6.0) 下载并打开 `MediaStorm-Agent-0.6.0-mac-arm64.dmg`，把 MediaStorm Agent 拖入 Applications。
 2. 从启动台打开应用，点击首页“连接模型”或左下角“模型与连接”。以后无需 npm 或终端启动。
 3. 有订阅的同事选“订阅账户”，选择服务和模型，点击登录后自动打开浏览器；完成授权后应用自动保存所选模型；用中转站的同事填写服务地址、协议、模型 ID 与密钥，点击“保存并测试连接”验证当前填写的设置。
 4. 点击“打开项目”，选择本地 Git 仓库根目录。当前项目完整路径会持续显示；首次使用会准备本项目的 Trellis 任务目录，已有配置不覆盖。
