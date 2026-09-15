@@ -36,7 +36,7 @@ else {
   const updates = attachUpdates(autoUpdater, {
     version: app.getVersion(),
     unavailable: !app.isPackaged ? '当前是开发版本。应用内更新在正式安装版中提供。' :
-      manifest.releaseChannel !== 'stable' ? '当前是本机试用包。请安装正式发布版以启用应用内更新。' :
+      manifest.releaseChannel !== 'stable' ? '当前预览版尚未启用自动安装。请点击“下载与版本记录”获取新版，退出应用后手动替换；登录和已保存对话会保留。' :
       process.platform !== 'darwin' || process.arch !== 'arm64' ? '当前系统暂不支持应用内更新。' :
       !app.isInApplicationsFolder() ? '请先把应用移入 Applications，再重新打开以使用更新。' : '',
     publish: state => send({ type: 'update', state }),

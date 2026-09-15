@@ -2,15 +2,17 @@
 
 基于 [Pi](https://pi.dev) 的桌面 Agent 平台。选择项目，直接说“帮我优化当前项目”，助手会调查问题、逐步澄清需求，确认方案后完成实现与检查，交付时由你验收。
 
-当前为 **0.5.0 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
+当前为 **0.5.1 Mac 桌面预览版**，支持 Apple Silicon（M 系列）Mac / macOS 13.5+。Windows 与 Intel Mac 尚未构建验证。
 
 ## 下载安装
 
-**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.5.0/MediaStorm-Agent-0.5.0-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.0)
+**[下载 Mac 安装包（M 系列）](https://github.com/zhujufeng/mediastorm-agent/releases/download/v0.5.1/MediaStorm-Agent-0.5.1-mac-arm64.dmg)** · [版本说明与校验文件](https://github.com/zhujufeng/mediastorm-agent/releases/tag/v0.5.1)
 
 打开 DMG，将应用拖入 Applications，然后从应用程序启动。无需安装 Node、npm 或 Pi。
 
-预览版尚未完成 Apple 签名公证，首次打开可能被 macOS 拦截。确认来自本仓库后，按 [Apple 的打开说明](https://support.apple.com/zh-cn/102445) 操作。当前通过下载新版覆盖应用更新，正式签名版的应用内升级仍待验证。
+预览版尚未完成 Apple 签名公证，首次打开可能被 macOS 拦截。确认来自本仓库后，按 [Apple 的打开说明](https://support.apple.com/zh-cn/102445) 操作。当前通过下载新版覆盖应用更新。左下角“软件更新”已有“下载与版本记录”入口；自动下载和重启安装仅在完成签名公证与升级验证的正式版启用，当前预览包不启用。
+
+0.5.1修复了0.5.0中Chrome连接前即报错、无法到达浏览器授权阶段的问题。
 
 ## 已有能力
 
@@ -64,7 +66,7 @@ npm run desktop:package
 npm run check:mac-package
 ```
 
-生成 `dist/MediaStorm-Agent-0.5.0-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
+生成 `dist/MediaStorm-Agent-0.5.1-mac-arm64.dmg`，打开后将应用拖入 Applications，以后可从启动台直接启动。安装包和运行时由源码生成，不存入 Git。
 
 0.5.0 可从左侧[数据采集](docs/data-collector.md)直接开始，无需Git项目；共用调查过程，再按场景讨论数据、插件或Python/TS交付。已支持字段/样例方案确认，以及当前页标准表格的实际核对、预览和CSV/JSON导出；不代表全站或筛选范围完整。另可导出复用同一规则的Chrome插件文件夹，需手动加载并在真实后台核对；Python/TS生成与运行仍待开发。
 
