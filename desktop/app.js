@@ -78,6 +78,8 @@ function setBusy(value) {
   document.querySelectorAll('.idle-only').forEach(control => control.disabled = working);
   $('stop').hidden = !working || loggingIn || testing || disconnected; $('send').hidden = working && !disconnected;
   $('cancel-test').hidden = !testing;
+  $('collection-rerun').hidden = !catalog?.collectionRecipe;
+  $('collection-rerun').disabled = working || catalog?.collectionRecipe?.status !== 'confirmed';
   $('collection-csv').disabled = $('collection-json').disabled = working || !catalog?.collectionData;
   $('collection-extension').hidden = catalog?.collectionPlan?.format !== 'chrome-extension';
   $('collection-extension').disabled = working || !catalog?.collectionData || $('collection-extension').hidden;
@@ -347,18 +349,24 @@ $('collect').onclick = () => run(async () => { updateCatalog(await call('collect
 $('collection-plan-open').onclick = () => run(async () => {
   const value = await call('catalog'); updateCatalog(value);
   if (!value.collectionPlan) { notice('尚无采集方案，请让助手整理字段、样例和交付方向。'); return; }
-  $('collection-plan-title').textContent = value.collectionData ? '已采集当前页 · 不代表全站完整' : value.collectionPlan.status === 'confirmed' ? '已确认需求 · 数据尚未验证' : '未确认的采集方案';
+  $('collection-plan-title').textContent = value.collectionData ? value.collectionRecipe ? '已核对当前范围全部页 · 非全站快照' : '已采集当前页 · 不代表全站完整' : value.collectionPlan.status === 'confirmed' ? '已确认需求 · 数据尚未验证' : '未确认的采集方案';
   $('collection-plan-text').textContent = '需求确认记录（不是运行结论）：\n' + value.collectionPlan.text;
   const result = value.collectionData;
   $('collection-plan-view').dataset.digest = result?.digest || '';
-  $('collection-result').textContent = result ? `${result.count}条当前页记录 · ${result.capturedAt}\n表头与已确认样例匹配。${result.warning}\n前5条预览：\n` + result.preview.map(row=>row.map((cell,i)=>`${result.columns[i]}=${JSON.stringify(cell)}`).join('；')).join('\n') : '尚无与当前方案匹配的采集结果。';
+  $('collection-result').textContent = result ? `${result.count}条${value.collectionRecipe ? '范围内' : '当前页'}记录 · ${result.capturedAt}\n${value.collectionRecipe ? '' : '表头与已确认样例匹配。'}${result.warning}\n前5条预览：\n` + result.preview.map(row=>row.map((cell,i)=>`${result.columns[i]}=${JSON.stringify(cell)}`).join('；')).join('\n') : '尚无与当前方案匹配的采集结果。';
   if (value.collectionPlan.format === 'chrome-extension') $('collection-result').textContent += '\n插件含来源、字段和业务样例，请勿公开分享。这里只核验了桌面数据，插件仍需在你的Chrome中手动加载、运行并核对；不会自动安装。';
   $('collection-plan-view').showModal();
 });
 $('collection-plan-close').onclick = () => $('collection-plan-view').close();
+$('collection-rerun').onclick = () => run(async () => {
+  if ($('prompt').value.trim() || draftImage || loadingImage) throw new Error('请先处理未发送的文字或截图，原草稿已保留。');
+  $('collection-plan-view').close();
+  try { await call('prompt', {text:'请实际运行已保存的全量采集方案，使用storm_collection_autonomous的run。不要复用旧结果或再次询问已有字段；日期沿用本次页面当前筛选并明确展示。'}); }
+  finally { updateCatalog(await call('catalog')); }
+});
 for (const format of ['csv','json','extension']) $('collection-' + format).onclick = () => run(async () => {
   const result = await call('collectionExport', {format:format === 'extension' ? 'chrome-extension' : format, digest:$('collection-plan-view').dataset.digest});
-  $('collection-result').textContent = result.saved ? `已导出${result.fileName}。` + (format === 'extension' ? '请按文件夹内README加载插件并实际核对；含业务样例，勿公开分享。未自动安装。' : '仅当前页快照，不代表全站完整性。') : '已取消导出，未写入文件。';
+  $('collection-result').textContent = result.saved ? `已导出${result.fileName}。` + (format === 'extension' ? '请按文件夹内README加载插件并实际核对；含业务样例，勿公开分享。未自动安装。' : catalog?.collectionRecipe ? '仅覆盖已确认页面和本次筛选，详见结果中的核对说明。' : '仅当前页快照，不代表全站完整性。') : '已取消导出，未写入文件。';
 }, message => { $('collection-result').textContent = message; });
 $('agent').onchange = () => run(async () => updateCatalog(await call('profile', { id: $('agent').value })), message => { $('agent').value = catalog.profile; notice(message); });
 $('notice-close').onclick = () => notice('');

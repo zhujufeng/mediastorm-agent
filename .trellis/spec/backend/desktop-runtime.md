@@ -27,11 +27,25 @@ Fetch限制仅作用于截获的目标HTTP(S)请求，不是全浏览器/系统�
 
 ## 独立数据采集入口
 
-worker的workspaceKind区分project/collector，collect动作仅创建userData/collector作为SDK会话cwd，不初始化Git/Trellis，不记入最近项目；目录不暴露为业务项目。独立模式DefaultResourceLoader禁用全部扩展/技能/项目上下文，仅附加desktop/collector.mjs说明；SDK tools严格为['storm_browser_page','storm_collection_plan','storm_collection_run']，customTools提供对应定义并共享互斥。Pi0.85.1 tools是名字白名单，不是工具实现数组；[]会禁用customTools，不能用setActiveTools绕过。
+worker的workspaceKind区分project/collector，collect动作仅创建userData/collector作为SDK会话cwd，不初始化Git/Trellis，不记入最近项目；目录不暴露为业务项目。独立模式DefaultResourceLoader禁用全部扩展/技能/项目上下文，仅附加desktop/collector.mjs说明；SDK tools严格为['storm_browser_page','storm_collection_plan','storm_collection_run','storm_collection_autonomous']，customTools提供对应定义并共享互斥。Pi0.85.1 tools是名字白名单，不是工具实现数组；[]会禁用customTools，不能用setActiveTools绕过。
 
 独立入口不继承项目任务批准，浏览器工具每次仍需真实确认。fresh/resume沿用当前workspaceKind及对应会话目录，禁止跨目录恢复；返回项目重新加载原扩展/角色门禁。没有第二套采集任务存储。UI单独欢迎页/采集历史，不显示Git差异与项目阶段入口；截图随入口切换清除。生成/运行核验未实现时必须明确，不将提示词描述当作已实现功能。
 
 collection-plan.mjs提供propose/current。完整结构经边界校验后计算SHA256；先appendCustomEntry写pending以撤销旧确认，再真实UI确认，finally写confirmed/cancelled。原生会话记录的dataVerified和executionAuthorized固定false；任何后续能力不得把需求确认当执行授权或数据验证。浏览器引用只校验本会话成功toolCallId及origin，路径、字段映射及样例正确性仍未核验；截图来源检查本会话用户图片存在，不声称做过OCR核验。最多12字段/5样例，行宽一致、字段唯一、缺失用null；URL拒绝凭据/查询参数，筛选写入scope。catalog只读投影状态/摘要/格式化文本，界面无写状态接口，切换入口清空方案查看弹窗。check-collection-plan及真实worker/UI覆盖确认/取消/停止/恢复、互斥、来源错配和记录损坏。
+
+## 自主响应调查与可复用采集
+
+collector新增storm_collection_autonomous(survey/plan/run/current)，与旧三工具共用collectionTools互斥；项目模式不注册。browser-survey只借用用户在真实UI中选择并授权的page target，元数据仅供选择。Puppeteer仍使用固定选项的新副本，不收模型target/脚本/调试端点。单次操作内连接→选择→范围授权，允许刷新和已识别分页，不逐条接口弹窗；不继承旧执行授权。结束/取消只detach自己的CDP会话并断开，不关闭用户tab。嵌套page会话须由创建它的root.send(Target.detachFromTarget,{sessionId})释放；直接page.detach会错误地通过顶级连接分离嵌套会话。
+
+只在授权主frame监听由该页面发起的GET/POST XHR/Fetch JSON响应；不阻止正常跨源资源或POST，不是网络沙箱。不保存/发送请求头、Cookie和原始请求体；接口URL只保留origin/path。重定向响应不读取。监听先于reload/分页，按当轮requestId/generation绑定；frame和同文档离开批准路径/非分页查询范围会永久撤销，即使立刻返回也不能继续读取。URL分页参数仅固定列表可变化；其他已识别筛选值及网址范围指纹必须在运行期间一致，filtersVerified仍为false，不宣称识别任意业务筛选。
+
+单轮最多保留100个候选请求记录、12个JSON文档，每响应512KiB、结构节点20000/深12，单字段超4000字符标记省略；省略或凭据过滤值不能作为交付字段。JSON数值通过公开JSON.parse reviver context.source保留字面值（字符串），避免大整数ID和金额舍入；不支持精确保留的运行时必须拒绝不安全数值。模型只收到有界预览，不把全部结果再次塞入上下文。普通业务链接保留查询参数，含秘密参数/片段的链接明确省略而不是悄悄变成错误地址。
+
+模型只能引用当前调查ID/候选，提交静态属性路径、字段/ID/总数及业务范围。原始数据来自真实响应，不接受模型提交的记录。方案与结果使用原有SDK custom entry；两种方案（旧plan/新recipe）按branch中最后一个方案记录选当前模式。pending/cancelled/引擎变化或失败运行不可复用旧成功结果；引擎摘要绑定两个新模块，保存的方案不等于有效执行授权。每日重跑不比较旧商品/金额样例；明确沿用当前页面筛选，不自动改成今天/昨天。
+
+全量核对要求唯一可识别分页组件、从第一页开始的连续页序、唯一ID、稳定总数及末页控件；同一所选响应端点/方法的不同结果不能混采。最多100页、100000条、10MiB输出、单次浏览器操作10分钟，不完整则失败。旧表格/MV3不扩大能力。新结果复用主进程原生保存与查看digest二次核验，导出CSV/JSON，不生成全量插件。新数据的allPagesVerified=true只表示当前范围下上述证据相符，不代表全站/数据库一致性/缓存新鲜度验收。
+
+check:browser-survey使用临时Chrome默认发现入口、合成登录Cookie、POST与跨源资源，验证真实SDK/worker/模型替身的survey→plan→run闭环、三页真值、次日变化、重复页、过期登录、导航往返撤权和取消清理。check:desktop-ui验证实际选页/授权/保存、导出及恢复后的运行按钮；不接触个人Chrome。真实后台和真实模型判断质量另行验收。
 
 ## 当前页数据产物
 

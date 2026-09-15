@@ -15,6 +15,7 @@ import { collectorInstructions } from './collector.mjs';
 import { collectionTools, currentCollectionPlan, renderCollectionPlan } from './collection-plan.mjs';
 import { currentCollectionData, serializeCollectionData } from './collection-data.mjs';
 import { collectionExtension } from './collection-extension.mjs';
+import { recipeAccess, currentRecipe, currentRecipeResult, renderRecipe, serializeRecipeResult } from './collection-recipe.mjs';
 
 // Python's standard-library bytecode must not modify the signed application bundle.
 process.env.PYTHONDONTWRITEBYTECODE = '1';
@@ -34,6 +35,7 @@ let proxyModels = readJSON(proxyFile, config?.provider === 'storm-proxy' ? [conf
 let loadedExtensions = [], eventBus, workflow = null, confirmation, projection;
 let projectEpoch = 0, revision = 0, workspaceKind = 'project';
 const browserAccess = browserTool();
+const autonomous = recipeAccess(() => session?.sessionManager);
 const workspaceState = () => ({ epoch: projectEpoch, revision, workflow, busy });
 function publishState(type) { revision++; emit(type, workspaceState()); }
 process.env.STORM_AGENT_PROFILE = profile;
@@ -86,7 +88,8 @@ async function catalog() {
   // All mutable workspace fields below are sampled together, after the last await.
   const tools = session?.getActiveToolNames() ?? [];
   const plan = workspaceKind === 'collector' ? currentCollectionPlan(session?.sessionManager) : null;
-  const artifact = plan ? currentCollectionData(session?.sessionManager, plan) : null;
+  const recipe = workspaceKind === 'collector' ? currentRecipe(session?.sessionManager) : null;
+  const artifact = recipe ? currentRecipeResult(session?.sessionManager) : plan ? currentCollectionData(session?.sessionManager, plan) : null;
   const plugins = pluginSettings.extensions.map(path => {
     const info = pluginSettings.stormPlugins?.[path] ?? { name: basename(path), description: '自定义 Pi 扩展' };
     const loaded = loadedExtensions.find(e => e.resolvedPath === resolve(appRoot, '.pi', path));
@@ -94,7 +97,7 @@ async function catalog() {
       path, loaded: Boolean(project && loaded), tools: loaded ? [...loaded.tools.keys()].filter(name => tools.includes(name)) : [],
       commands: loaded ? [...loaded.commands.keys()] : [] };
   });
-  return { collectionData:artifact ? {digest:artifact.digest, count:artifact.data.records.length, columns:artifact.data.columns, preview:artifact.data.records.slice(0,5), source:artifact.data.source, capturedAt:artifact.data.capturedAt, warning:artifact.data.warning} : null, collectionPlan:plan ? {status:plan.status, digest:plan.digest, format:plan.plan.delivery.format, text:renderCollectionPlan(plan.plan)} : null,
+  return { collectionRecipe: recipe ? {status:recipe.status,text:renderRecipe(recipe)} : null, collectionData:artifact ? {digest:artifact.digest, count:artifact.data.records.length, columns:artifact.data.columns, preview:artifact.data.records.slice(0,5), source:artifact.data.source, capturedAt:artifact.data.capturedAt, warning:artifact.data.warning} : null, collectionPlan:recipe ? {status:recipe.status,digest:recipe.digest,format:'data',text:renderRecipe(recipe)} : plan ? {status:plan.status, digest:plan.digest, format:plan.plan.delivery.format, text:renderCollectionPlan(plan.plan)} : null,
     providers, config, hasProxyKey: Boolean(proxyCredential), profile, plugins, ...workspaceState(),
     indexed: Boolean(project && existsSync(join(project, '.codegraph'))),
     proxyModels: proxyModels.filter(m => m.baseUrl === proxyCredential?.env?.STORM_PROXY_BASE_URL),
@@ -120,7 +123,7 @@ async function openProject(path, fresh = false, savedSession, kind = 'project') 
   assertIdle();
   const root = kind === 'collector' ? join(dataDir, 'collector') : prepareProject(textInput(path, '项目目录', 4000));
   if (kind === 'collector') mkdirSync(root, {recursive:true, mode:0o700});
-  await browserAccess.stop();
+  await Promise.all([browserAccess.stop(), autonomous.stop()]);
   if (session) { await session.abort(); session.dispose(); session = undefined; }
   project = undefined; loadedExtensions = []; projection = undefined; confirmation = undefined;
   eventBus?.clear(); workflow = null; workspaceKind = kind;
@@ -146,8 +149,8 @@ async function openProject(path, fresh = false, savedSession, kind = 'project') 
   if (errors.length) throw new Error(`插件加载失败：${errors.map(e => e.error).join('\n')}`);
   const result = await createAgentSession({ cwd: root, agentDir: join(dataDir, 'pi'), settingsManager, modelRuntime: runtime, resourceLoader: loader,
     model: config ? runtime.getModel(config.provider, config.model) : undefined,
-    excludeTools: ['trellis_subagent'], customTools: kind === 'collector' ? collectionTools(browserAccess.tool, () => session.sessionManager) : [browserAccess.tool],
-    ...(kind === 'collector' ? {tools:['storm_browser_page','storm_collection_plan','storm_collection_run']} : {}),
+    excludeTools: ['trellis_subagent'], customTools: kind === 'collector' ? collectionTools(browserAccess.tool, () => session.sessionManager, [autonomous.tool]) : [browserAccess.tool],
+    ...(kind === 'collector' ? {tools:['storm_browser_page','storm_collection_plan','storm_collection_run','storm_collection_autonomous']} : {}),
     sessionManager: savedSession ? SessionManager.open(savedSession, dir) : fresh ? SessionManager.create(root, dir) : SessionManager.continueRecent(root, dir) });
   session = result.session;
   projection = messageProjection(session.sessionManager);
@@ -284,12 +287,17 @@ const handlers = {
   async stop() {
     loginAbort?.abort(); imageAbort?.abort();
     for (const [id, finish] of [...pending]) if (!credentialRequests.has(id)) finish(undefined, '操作已取消');
-    await Promise.all([session?.abort(), browserAccess.stop()]); return true;
+    await Promise.all([session?.abort(), browserAccess.stop(), autonomous.stop()]); return true;
   },
   async close() { await handlers.stop(); session?.dispose(); process.exitCode = 0; setTimeout(() => process.exit(), 50); },
   collectionExport(data) {
     assertIdle();
     if (workspaceKind !== 'collector') throw new Error('请在独立采集对话中导出。');
+    if (currentRecipe(session?.sessionManager)) {
+      const artifact = currentRecipeResult(session?.sessionManager);
+      if (!artifact || data.digest !== artifact.digest) throw new Error('全量采集结果已失效或查看的结果已变化。');
+      return {content:serializeRecipeResult(artifact,data.format),digest:artifact.digest};
+    }
     const plan = currentCollectionPlan(session?.sessionManager);
     const artifact = currentCollectionData(session?.sessionManager, plan);
     if (!artifact || (data.digest !== undefined && data.digest !== artifact.digest)) throw new Error('采集结果已失效或尚未生成，请重新核对方案和运行结果。');

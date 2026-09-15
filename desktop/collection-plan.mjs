@@ -72,7 +72,7 @@ function checkSource(plan, manager) {
   try { data = JSON.parse(message.content.filter(part=>part.type==='text').map(part=>part.text).join('\n')); } catch { throw new Error('浏览器来源结果无法核对。'); }
   if (data.untrusted !== true || data.source !== new URL(plan.source.url).origin) throw new Error('方案地址与网页读取来源不一致。');
 }
-export function collectionTools(browser, manager) {
+export function collectionTools(browser, manager, additional = []) {
   let pending = false;
   const planTool = {
     name:'storm_collection_plan', label:'确认采集方案',
@@ -121,7 +121,7 @@ export function collectionTools(browser, manager) {
       }
     },
   };
-  return [browser, planTool, runTool].map(tool => ({...tool, async execute(...args) {
+  return [browser, planTool, runTool, ...additional].map(tool => ({...tool, async execute(...args) {
     if (pending) throw new Error('网页调查、方案确认或采集正在进行，请等待结束。');
     pending = true;
     try { return await tool.execute(...args); } finally { pending = false; }

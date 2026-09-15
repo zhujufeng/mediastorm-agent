@@ -13,6 +13,7 @@ const evidence = resolve(process.env.STORM_UI_EVIDENCE || '.local/desktop-ui-evi
 const failures = [], passed = [], screenshots = [], remote = [], requests = [];
 let window, server, finishing = false, watchdog, worker, listReached, modelGate, catalogGate, browserContext;
 const catalogResults = [];
+let productDay = 0;
 function barrier() {
   let reach, release;
   const reached = new Promise(resolve => { reach = resolve; }), released = new Promise(resolve => { release = resolve; });
@@ -98,10 +99,12 @@ async function run() {
   server = http.createServer(async (req, res) => {
     try {
       if (req.url === '/browser-fixture') { res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'}); res.end('<!doctype html><title>Synthetic browser</title><h1>DESKTOP_BROWSER_SYNTHETIC</h1><table><tr><th>订单号</th><th>金额</th></tr><tr><td>A-1</td><td>10</td></tr><tr><td>A-2</td><td>20</td></tr></table><form>NEVER_RETURN_FORM</form>'); return; }
+      if (req.url === '/product-fixture') { res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'}); res.end('<title>自主商品测试</title><h1>商品列表</h1><input name="date" value="昨日"><div class="pagination"><button onclick="go(1)">1</button><span aria-current="page">1</span><button id="next" aria-label="下一页" onclick="go(current+1)">下一页</button></div><script>let current=1;function go(page){fetch("/product-data",{method:"POST",body:JSON.stringify({page})}).then(r=>r.json()).then(data=>{current=page;document.querySelector("[aria-current]").textContent=page;document.querySelector("#next").disabled=page===3;});}go(1);</script>'); return; }
+      if (req.url === '/product-data') { let raw='';for await(const chunk of req)raw+=chunk;const page=JSON.parse(raw).page;res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({total:3,rows:[{id:productDay*10+page,name:'商品'+page}]}));return; }
       if (req.method !== 'POST') { res.writeHead(404); res.end(); return; }
       let raw = ''; for await (const chunk of req) raw += chunk;
       const body = JSON.parse(raw); requests.push(body); assert.equal(req.headers.authorization, 'Bearer local-ui-fixture');
-      const start = body.messages.findLastIndex(m => m.role === 'user' && /UI_(PLAN|EXECUTE|RETRY|ACCEPT|SLOW|TEXT|BROWSER|COLLECT|DATA|EXTENSION)/.test(JSON.stringify(m.content)));
+      const start = body.messages.findLastIndex(m => m.role === 'user' && /UI_(PLAN|EXECUTE|RETRY|ACCEPT|SLOW|TEXT|BROWSER|COLLECT|DATA|EXTENSION|AUTONOMOUS)|运行已保存的全量采集方案/.test(JSON.stringify(m.content)));
       const trigger = start >= 0 ? JSON.stringify(body.messages[start].content) : '';
       const completed = start >= 0 ? body.messages.slice(start + 1).filter(m => m.role === 'tool').length : 0;
       if (modelGate && trigger.includes('UI_RETRY') && completed === 1) { const gate = modelGate; modelGate = null; await gate.pause(); }
@@ -132,6 +135,16 @@ async function run() {
       if (trigger.includes('UI_COLLECT')) steps = [['storm_collection_plan',{action:'propose',plan:{goal:'导出订单',source:{basis:'description'},fields:[{name:'订单号',meaning:'后台唯一编号'},{name:'金额',meaning:'币种待核验'}],samples:[['A-1',null]],missing:['金额、币种和来源待核验'],scope:'上月订单',maxRecords:100,delivery:{format:'python',reason:'后续需要清洗分析，API和认证尚待调查'}}}]];
       if (trigger.includes('UI_DATA_PLAN') || trigger.includes('UI_EXTENSION_PLAN')) steps = [['storm_collection_plan',{action:'propose',plan:{goal:'导出当前页订单',capture:'current-page-table',source:{basis:'description',url:`http://127.0.0.1:${server.address().port}/browser-fixture`},fields:[{name:'订单号',meaning:'当前表头'},{name:'金额',meaning:'当前表头'}],samples:[['A-1','10']],missing:[],scope:'只要当前页，不翻页，不自动筛选',maxRecords:10,delivery:{format:trigger.includes('UI_EXTENSION_PLAN')?'chrome-extension':'data',reason:'当前页表格交付'}}}]];
       if (trigger.includes('UI_DATA_RUN')) steps = [['storm_collection_run',{}]];
+      if (trigger.includes('UI_AUTONOMOUS')) {
+        steps=[['storm_collection_autonomous',{action:'survey'}]];
+        if(completed===1) {
+          const result=JSON.parse(body.messages.slice(start+1).find(message=>message.role==='tool').content);
+          const candidate=result.candidates.find(item=>item.preview?.rows?.arrayLength);
+          steps[1]=['storm_collection_autonomous',{action:'plan',surveyId:result.surveyId,candidateId:candidate.id,recipe:{name:'每日全部商品',scope:'当前页面筛选下的全部商品',arrayPath:['rows'],idPath:['id'],totalPath:['total'],fields:[{name:'商品ID',path:['id']},{name:'商品名',path:['name']}],maxRecords:100,maxPages:10}}];
+        }
+        if(completed===2)steps[2]=['storm_collection_autonomous',{action:'run'}];
+      }
+      if(trigger.includes('运行已保存的全量采集方案'))steps=[['storm_collection_autonomous',{action:'run'}]];
       if (completed && trigger.includes('UI_EXECUTE')) {
         const result = body.messages.slice(start + 1).find(m => m.role === 'tool');
         try { if (JSON.parse(result.content).applied === false) steps = []; } catch { /* Normal non-JSON tool text. */ }
@@ -218,7 +231,7 @@ async function run() {
   await prompt('UI_TEXT independent collection');
   await until(() => js("document.querySelector('#question').open"), 'collector image consent');
   await click('#question-submit'); await idle();
-  assert.deepEqual(requests.at(-1).tools.map(t=>t.function.name), ['storm_browser_page','storm_collection_plan','storm_collection_run']);
+  assert.deepEqual(requests.at(-1).tools.map(t=>t.function.name), ['storm_browser_page','storm_collection_plan','storm_collection_run','storm_collection_autonomous']);
   assert.match(JSON.stringify(requests.at(-1).messages), /独立采集对话/);
   assert.doesNotMatch(JSON.stringify(requests.at(-1).messages), /MediaStorm 工作流已启用/);
   await prompt('UI_BROWSER independent investigation');
@@ -303,8 +316,34 @@ async function run() {
   assert.match(await text('#messages'), /附有1张图片/); await shot('collector-independent-history');
   await click('#collection-plan-open'); await until(()=>js("document.querySelector('#collection-plan-view').open"),'restored plan');
   assert.match(await text('#collection-plan-title'), /已采集当前页/); await click('#collection-plan-close');
+  const productPage=await browserContext.newPage();await productPage.goto(`http://127.0.0.1:${server.address().port}/product-fixture`);
+  await click('#fresh');await idle();
+  async function approveSurvey() {
+    for(const title of ['选择要调查的Chrome页面？','选择已登录的商品页面','授权本次页面调查与只读分页？']) {
+      await until(()=>js(`document.querySelector('#question').open && document.querySelector('#question-title').textContent===${JSON.stringify(title)}`),title);
+      if(title==='选择已登录的商品页面')await js("document.querySelector('#question-options').value=[...document.querySelector('#question-options').options].find(option=>option.textContent.includes('自主商品测试')).value");
+      await click('#question-submit');
+    }
+  }
+  await prompt('UI_AUTONOMOUS 全部商品，每天采集一遍');await approveSurvey();
+  await until(()=>js("document.querySelector('#question').open && document.querySelector('#question-title').textContent==='保存每日可运行的采集方案？'"),'autonomous plan');
+  await shot('collector-autonomous-plan');await click('#question-submit');await approveSurvey();await idle();
+  const autoCatalog=await js("window.storm.invoke('catalog')");assert.equal(autoCatalog.collectionData.count,3);
+  await click('#collection-plan-open');await until(()=>js("document.querySelector('#collection-plan-view').open"),'autonomous result panel');
+  assert.match(await text('#collection-plan-title'),/全部页/);assert.equal(await hidden('#collection-rerun'),false);await shot('collector-autonomous-result');
+  const autoSave=dialog.showSaveDialog;
+  try {const file=join(temporary,'all-products.json');dialog.showSaveDialog=async()=>({canceled:false,filePath:file});await click('#collection-json');await until(async()=>/已导出all-products/.test(await text('#collection-result')),'all-products export');assert.equal(JSON.parse(readFileSync(file,'utf8')).uniqueCount,3);}
+  finally {dialog.showSaveDialog=autoSave;}
+  await click('#collection-plan-close');
+  const savedAuto=autoCatalog.sessions.find(item=>item.active).id;
+  await click('#fresh');await idle();await js(`window.storm.invoke('resume',{id:${JSON.stringify(savedAuto)}})`);await idle();
+  await click('#collection-plan-open');await until(()=>js("document.querySelector('#collection-plan-view').open"),'restored autonomous recipe');
+  productDay=1;await click('#collection-rerun');await approveSurvey();await idle();
+  const rerun=await js("window.storm.invoke('catalog').then(value=>value.collectionData)");assert.deepEqual(rerun.preview.map(row=>row[0]),['11','12','13']);assert.notEqual(rerun.digest,autoCatalog.collectionData.digest);
+  assert.equal(productPage.isClosed(),false);await productPage.close();
+  passed.push('Autonomous real UI/SDK flow selects a borrowed page, confirms a derived recipe, collects three JSON pages, exports actual data and re-runs the saved recipe after session restoration with changed product IDs; native model and dialog choices simulated');
   await click('#recent button'); await idle(); assert.equal(await hidden('#agent'), false);
-  passed.push('Independent collector UI without Git selection: screenshot input, real three-step synthetic browser read, only browser/plan/current-table tools, plan confirmation/cancellation and persistence, fresh/resume and return to normal project workflow');
+  passed.push('Independent collector UI without Git selection: screenshot input, real three-step synthetic browser read, only browser/plan/current-table/autonomous tools, plan confirmation/cancellation and persistence, fresh/resume and return to normal project workflow');
   await input('#prompt', '键盘输入'); key('Return', ['shift'], true); await delay(80); assert.match(await js("document.querySelector('#prompt').value"), /\n/);
   const before = requests.length;
   await js("document.querySelector('#prompt').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true}))");

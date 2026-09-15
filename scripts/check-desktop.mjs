@@ -283,7 +283,7 @@ try {
   const projectConversation = (await request('catalog')).sessions.find(s => s.active);
   const independent = await request('collect');
   assert.equal(independent.project, null); assert.equal(independent.workspaceKind, 'collector');
-  assert.deepEqual((await request('diagnostics')).tools, ['storm_browser_page','storm_collection_plan','storm_collection_run']);
+  assert.deepEqual((await request('diagnostics')).tools, ['storm_browser_page','storm_collection_plan','storm_collection_run','storm_collection_autonomous']);
   assert.ok(independent.plugins.every(p => !p.loaded));
   assert.equal(existsSync(join(dataDir, 'collector', '.git')), false);
   assert.equal(existsSync(join(dataDir, 'collector', '.trellis')), false);
@@ -293,7 +293,7 @@ try {
   assert.match(JSON.stringify(bodies.at(-1).messages), /独立采集对话/);
   assert.match(JSON.stringify(bodies.at(-1).messages), /Python/);
   assert.doesNotMatch(JSON.stringify(bodies.at(-1).messages), /MediaStorm 工作流已启用|Desktop confirmation|Screenshot fixture/);
-  assert.deepEqual(bodies.at(-1).tools.map(t => t.function.name), ['storm_browser_page','storm_collection_plan','storm_collection_run']);
+  assert.deepEqual(bodies.at(-1).tools.map(t => t.function.name), ['storm_browser_page','storm_collection_plan','storm_collection_run','storm_collection_autonomous']);
   {
     const questionReady = new Promise(resolve => { nextQuestion = resolve; });
     const turn = request('prompt', {text:'desktop browser consent independent'});
@@ -320,7 +320,7 @@ try {
   assert.ok((await request('diagnostics')).tools.includes('storm_task'));
   assert.ok(!(await request('diagnostics')).tools.includes('storm_collection_plan'));
   await assert.rejects(request('resume', {id:collectorSession.id}), /不属于/);
-  console.log('PASS: independent collector needs no Git/Trellis, has only browser/plan/current-table capabilities, retains real consent, isolates project context/history and restores normal project gates.');
+  console.log('PASS: independent collector needs no Git/Trellis, has only browser/plan/current-table/autonomous capabilities, retains real consent, isolates project context/history and restores normal project gates.');
   console.log('PASS: screenshot capability gate, real worker consent/cancel/stop, provider image payload, session persistence/restore, bounded image metadata projection and no silent dropping.');
   console.log('PASS: desktop validation, credentials, model/role restoration, plugin catalog, unified workflow prompts, non-destructive legacy context filtering, SDK/plugins, streaming and approval/cancellation bridge. Local HTTP fixture only; no external model calls.');
 } finally { server?.close(); child?.kill(); rmSync(dir,{recursive:true,force:true}); }
